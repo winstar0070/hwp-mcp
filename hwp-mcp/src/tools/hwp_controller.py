@@ -167,7 +167,7 @@ class HwpController:
 
     def set_font(self, font_name: str, font_size: int, bold: bool = False, italic: bool = False) -> bool:
         """
-        현재 선택된 텍스트의 글꼴을 설정합니다.
+        글꼴 속성을 설정합니다. 현재 위치에서 다음에 입력할 텍스트에 적용됩니다.
         
         Args:
             font_name (str): 글꼴 이름
@@ -182,26 +182,14 @@ class HwpController:
             if not self.is_hwp_running:
                 return False
             
-            # 간단한 방식으로 처리: 명령어로 직접 실행
-            self.hwp.Run("SelectAll")  # 전체 선택
-            
-            # 매크로 명령 사용
-            size_pt = font_size * 100 if font_size else 1000  # 폰트 크기 단위 변환, None이면 기본값 사용
-            
-            # 굵게 및 기울임꼴 설정
-            boldValue = "1" if bold else "0"
-            italicValue = "1" if italic else "0"
-            
-            # 폰트 이름이 None이면 빈 문자열로 처리 (현재 폰트 유지)
-            font_name_str = font_name if font_name else ""
-            
-            # 직접 매크로 명령 실행
-            self.hwp.Run(f'CharShape "{font_name_str}" {size_pt} {boldValue} {italicValue} 0 0 "" 0 "" 0')
-            
-            # 선택 취소 추가
-            self.hwp.Run("Cancel")
-            
-            return True
+            # 새로운 구현: set_font_style 메서드 사용
+            return self.set_font_style(
+                font_name=font_name,
+                font_size=font_size,
+                bold=bold,
+                italic=italic,
+                underline=False
+            )
         except Exception as e:
             print(f"글꼴 설정 실패: {e}")
             return False
@@ -210,6 +198,7 @@ class HwpController:
                      bold: bool = False, italic: bool = False, underline: bool = False) -> bool:
         """
         현재 선택된 텍스트의 글꼴 스타일을 설정합니다.
+        선택된 텍스트가 없으면, 다음 입력될 텍스트에 적용됩니다.
         
         Args:
             font_name (str, optional): 글꼴 이름. None이면 현재 글꼴 유지.
@@ -225,8 +214,7 @@ class HwpController:
             if not self.is_hwp_running:
                 return False
             
-            # 현재 선택 유지, 선택된 것이 없으면 현재 위치에서 적용
-            
+            # 1. 현재 선택된 텍스트에 스타일 적용
             # 고급 글자 모양 설정을 위한 HAction 사용
             self.hwp.HAction.GetDefault("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
             
@@ -249,6 +237,34 @@ class HwpController:
             
             # 글자 모양 적용
             self.hwp.HAction.Execute("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
+            
+            # 2. 기본 글자 모양 설정 (다음 입력에 적용)
+            try:
+                # 기본 글자 모양 가져오기
+                self.hwp.HAction.GetDefault("DefaultCharShape", self.hwp.HParameterSet.HCharShape.HSet)
+                
+                # 폰트 이름 설정
+                if font_name:
+                    self.hwp.HParameterSet.HCharShape.FaceNameHangul = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameEnglish = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameOther = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameSymbol = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameUser = font_name
+                
+                # 폰트 크기 설정
+                if font_size:
+                    self.hwp.HParameterSet.HCharShape.Height = font_size * 100
+                
+                # 굵게, 기울임꼴, 밑줄 설정
+                self.hwp.HParameterSet.HCharShape.Bold = 1 if bold else 0
+                self.hwp.HParameterSet.HCharShape.Italic = 1 if italic else 0
+                self.hwp.HParameterSet.HCharShape.UnderlineType = 1 if underline else 0
+                
+                # 기본 글자 모양 적용
+                self.hwp.HAction.Execute("DefaultCharShape", self.hwp.HParameterSet.HCharShape.HSet)
+            except Exception as e_default:
+                print(f"기본 글자 모양 설정 실패: {e_default} (무시하고 계속 진행)")
+                # 기본 글자 모양 설정 실패는 무시
             
             return True
         except Exception as e:
