@@ -148,7 +148,7 @@ def hwp_save(path: str = None) -> str:
         return f"Error: {str(e)}"
 
 @mcp.tool()
-def hwp_insert_text(text: str) -> str:
+def hwp_insert_text(text: str, preserve_linebreaks: bool = True) -> str:
     """Insert text at the current cursor position."""
     try:
         if not text:
@@ -158,7 +158,27 @@ def hwp_insert_text(text: str) -> str:
         if not hwp:
             return "Error: Failed to connect to HWP program"
         
-        if hwp.insert_text(text):
+        # 줄바꿈 문자 처리
+        if preserve_linebreaks and ('\n' in text or '\\n' in text):
+            # 이스케이프된 줄바꿈 문자(\n)와 실제 줄바꿈 문자 모두 처리
+            processed_text = text.replace('\\n', '\n')
+            lines = processed_text.split('\n')
+            
+            success = True
+            for i, line in enumerate(lines):
+                if not hwp.insert_text(line):
+                    success = False
+                    break
+                # 마지막 줄이 아니면 줄바꿈 삽입
+                if i < len(lines) - 1:
+                    hwp.insert_paragraph()
+            
+            if success:
+                logger.info("Successfully inserted text with line breaks")
+                return "Text with line breaks inserted successfully"
+            else:
+                return "Error: Failed to insert text with line breaks"
+        elif hwp.insert_text(text):
             logger.info("Successfully inserted text")
             return "Text inserted successfully"
         else:
@@ -1049,15 +1069,21 @@ def hwp_batch_operations(operations: list) -> dict:
                     if not text:
                         result["status"] = "error"
                         result["message"] = "Text is required"
-                    elif preserve_linebreaks and '\n' in text:
-                        # 줄바꿈 보존 처리
-                        lines = text.split('\n')
+                    elif preserve_linebreaks and ('\n' in text or '\\n' in text):
+                        # 줄바꿈 보존 처리 개선
+                        # 이스케이프된 줄바꿈 문자(\n)와 실제 줄바꿈 문자 모두 처리
+                        # 먼저 이스케이프된 줄바꿈 문자를 실제 줄바꿈으로 변환
+                        processed_text = text.replace('\\n', '\n')
+                        lines = processed_text.split('\n')
+                        
                         success = True
-                        for line in lines:
+                        for i, line in enumerate(lines):
                             if not hwp.insert_text(line):
                                 success = False
                                 break
-                            hwp.insert_paragraph()
+                            # 마지막 줄이 아니면 줄바꿈 삽입
+                            if i < len(lines) - 1:
+                                hwp.insert_paragraph()
                         
                         if success:
                             result["message"] = "Text with line breaks inserted successfully"
