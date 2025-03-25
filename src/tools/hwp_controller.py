@@ -192,6 +192,9 @@ class HwpController:
             if current_pos:
                 self.hwp.SetPos(*current_pos)
             
+            # 표 내부에 있는지 확인하는 플래그
+            is_in_table = False
+            
             # 셀 내부에 있는지 확인하고 명시적으로 셀 위치 고정
             try:
                 # 현재 위치가 표 안에 있는지 확인
@@ -200,17 +203,18 @@ class HwpController:
                 # 현재 셀에 커서 고정
                 self.hwp.Run("TableSelCell")    # 현재 셀 선택
                 self.hwp.Run("Cancel")          # 선택 취소
+                is_in_table = True  # 표 안에 있음을 표시
             except:
                 # 표 안이 아니면 무시
-                pass
+                is_in_table = False
             
             # 텍스트 삽입을 위한 액션 초기화
             self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
             self.hwp.HParameterSet.HInsertText.Text = text
             self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
             
-            # 입력 후 현재 위치로 다시 이동 (위치 보존)
-            if current_pos:
+            # 표 내부에 있는 경우에만 커서 위치 복원
+            if is_in_table and current_pos:
                 try:
                     self.hwp.SetPos(*current_pos)
                 except:
