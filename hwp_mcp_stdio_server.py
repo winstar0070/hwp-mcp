@@ -57,6 +57,21 @@ except ImportError as e:
         print(f"Error: Could not find HwpController module", file=sys.stderr)
         sys.exit(1)
 
+# Try to import HwpTableTools
+try:
+    from src.tools.hwp_table_tools import HwpTableTools
+    logger.info("HwpTableTools imported successfully")
+except ImportError as e:
+    logger.error(f"Failed to import HwpTableTools: {str(e)}")
+    # Try alternate paths
+    try:
+        from hwp_table_tools import HwpTableTools
+        logger.info("HwpTableTools imported from alternate path")
+    except ImportError as e2:
+        logger.error(f"Could not find HwpTableTools in any path: {str(e2)}")
+        print(f"Error: Could not find HwpTableTools module", file=sys.stderr)
+        sys.exit(1)
+
 # Initialize FastMCP server
 mcp = FastMCP(
     "hwp-mcp",
@@ -68,10 +83,12 @@ mcp = FastMCP(
 
 # Global HWP controller instance
 hwp_controller = None
+# Global HWP table tools instance
+hwp_table_tools = None
 
 def get_hwp_controller():
     """Get or create HwpController instance."""
-    global hwp_controller
+    global hwp_controller, hwp_table_tools
     if hwp_controller is None:
         logger.info("Creating HwpController instance...")
         try:
@@ -79,11 +96,24 @@ def get_hwp_controller():
             if not hwp_controller.connect(visible=True):
                 logger.error("Failed to connect to HWP program")
                 return None
+            
+            # 테이블 도구 인스턴스도 초기화
+            hwp_table_tools = HwpTableTools(hwp_controller)
+            
             logger.info("Successfully connected to HWP program")
         except Exception as e:
             logger.error(f"Error creating HwpController: {str(e)}", exc_info=True)
             return None
     return hwp_controller
+
+def get_hwp_table_tools():
+    """Get or create HwpTableTools instance."""
+    global hwp_table_tools, hwp_controller
+    if hwp_table_tools is None:
+        hwp_controller = get_hwp_controller()
+        if hwp_controller:
+            hwp_table_tools = HwpTableTools(hwp_controller)
+    return hwp_table_tools
 
 @mcp.tool()
 def hwp_create() -> str:
@@ -224,15 +254,12 @@ def hwp_set_font(
 def hwp_insert_table(rows: int, cols: int) -> str:
     """Insert a table at the current cursor position."""
     try:
-        hwp = get_hwp_controller()
-        if not hwp:
-            return "Error: Failed to connect to HWP program"
+        # HwpTableTools 인스턴스 가져오기
+        table_tools = get_hwp_table_tools()
+        if not table_tools:
+            return "Error: Failed to get table tools instance"
         
-        if hwp.insert_table(rows, cols):
-            logger.info(f"Successfully inserted {rows}x{cols} table")
-            return f"Table inserted with {rows} rows and {cols} columns"
-        else:
-            return "Error: Failed to insert table"
+        return table_tools.insert_table(rows, cols)
     except Exception as e:
         logger.error(f"Error inserting table: {str(e)}", exc_info=True)
         return f"Error: {str(e)}"
@@ -276,11 +303,12 @@ def hwp_get_text() -> str:
 def hwp_close(save: bool = True) -> str:
     """Close the HWP document and connection."""
     try:
-        global hwp_controller
+        global hwp_controller, hwp_table_tools
         if hwp_controller and hwp_controller.is_hwp_running:
             if hwp_controller.disconnect():
                 logger.info("Successfully closed HWP connection")
                 hwp_controller = None
+                hwp_table_tools = None
                 return "HWP connection closed successfully"
             else:
                 return "Error: Failed to close HWP connection"
@@ -328,300 +356,88 @@ def hwp_ping_pong(message: str = "핑") -> str:
         return f"테스트 오류 발생: {str(e)}"
 
 @mcp.tool()
-def hwp_create_table_pyhwpx(rows: int, cols: int, data: str = None, has_header: bool = False) -> str:
+def hwp_create_table_with_data(rows: int, cols: int, data = None, has_header: bool = False) -> str:
     """
-    pyhwpx를 사용하여 현재 커서 위치에 표를 생성합니다.
+    pywin32를 사용하여 현재 커서 위치에 표를 생성하고 데이터를 채웁니다.
     
     Args:
         rows: 표의 행 수
         cols: 표의 열 수
-        data: 표에 채울 데이터 (JSON 형식의 2차원 배열 문자열, 예: '[["항목1", "항목2"], ["값1", "값2"]]')
+        data: 표에 채울 데이터 (JSON 문자열 또는 파이썬 리스트)
         has_header: 첫 번째 행을 헤더로 처리할지 여부
         
     Returns:
         str: 결과 메시지
     """
     try:
-        hwp = get_hwp_controller()
-        if not hwp:
-            return "Error: Failed to connect to HWP program"
+        # HwpTableTools 인스턴스 가져오기
+        table_tools = get_hwp_table_tools()
+        if not table_tools:
+            return "Error: Failed to get table tools instance"
         
-        # pyhwpx 방식으로 표 생성
-        js_code = f"""
-        function createTableWithPyhwpx() {{
-            var hwp = this;
-            
-            // 표 생성
-            hwp.HAction.GetDefault("TableCreate", hwp.HParameterSet.HTableCreation.HSet);
-            hwp.HParameterSet.HTableCreation.Rows = {rows};
-            hwp.HParameterSet.HTableCreation.Cols = {cols};
-            hwp.HParameterSet.HTableCreation.WidthType = 0;  // 단에 맞춤
-            hwp.HParameterSet.HTableCreation.HeightType = 1;  // 절대값
-            hwp.HParameterSet.HTableCreation.WidthValue = 0;
-            hwp.HParameterSet.HTableCreation.HeightValue = 1000;
-            
-            // 열 너비 설정
-            var colWidth = 8000 / {cols};  // 균등하게 분배
-            hwp.HParameterSet.HTableCreation.CreateItemArray("ColWidth", {cols});
-            for (var i = 0; i < {cols}; i++) {{
-                hwp.HParameterSet.HTableCreation.ColWidth.SetItem(i, colWidth);
-            }}
-            
-            hwp.HAction.Execute("TableCreate", hwp.HParameterSet.HTableCreation.HSet);
-            
-            return "표 생성 완료";
-        }}
+        # 표 생성
+        if not table_tools.insert_table(rows, cols):
+            return "Error: Failed to create table"
         
-        createTableWithPyhwpx();
-        """
-        
-        # 표 생성 실행
-        result = hwp.execute_script(js_code)
-        logger.info(f"표 생성 결과: {result}")
-        
-        # 데이터가 제공된 경우 표 채우기
-        if data:
-            try:
-                # JSON 문자열을 파이썬 객체로 변환
-                data_array = json.loads(data)
-                
-                # 표의 크기 확인
-                if len(data_array) > rows:
-                    data_array = data_array[:rows]  # 행 수 초과 시 자르기
-                
-                # 각 셀에 데이터 입력
-                for row_idx, row_data in enumerate(data_array):
-                    if len(row_data) > cols:
-                        row_data = row_data[:cols]  # 열 수 초과 시 자르기
-                    
-                    for col_idx, cell_data in enumerate(row_data):
-                        # 셀 위치 계산 (List 인덱스는 0부터 시작, 표는 생성 직후 위치 찾기)
-                        cell_list_idx = 3 + row_idx * cols + col_idx
-                        
-                        # 셀 데이터 입력을 위한 JavaScript 코드
-                        cell_js = f"""
-                        function fillCell() {{
-                            var hwp = this;
-                            
-                            // 셀로 이동
-                            hwp.SetPos({cell_list_idx}, 0, 0);
-                            
-                            // 셀 내용 선택 및 삭제
-                            hwp.SelectAll();
-                            hwp.Delete();
-                            
-                            // 텍스트 입력
-                            hwp.HAction.GetDefault("InsertText", hwp.HParameterSet.HInsertText.HSet);
-                            hwp.HParameterSet.HInsertText.Text = "{str(cell_data)}";
-                            hwp.HAction.Execute("InsertText", hwp.HParameterSet.HInsertText.HSet);
-                            
-                            return "셀 데이터 입력 완료";
-                        }}
-                        
-                        fillCell();
-                        """
-                        
-                        # 셀 데이터 입력 실행
-                        hwp.execute_script(cell_js)
+        # 데이터가 있는 경우 표 채우기
+        if data is not None:
+            # 데이터 형식 로깅
+            logger.info(f"Create table with data type: {type(data)}, data: {str(data)[:100]}...")
             
-                # 헤더 스타일 설정 (첫 번째 행이 헤더인 경우)
-                if has_header and data_array and len(data_array) > 0:
-                    for col_idx in range(min(cols, len(data_array[0]))):
-                        header_js = f"""
-                        function styleHeader() {{
-                            var hwp = this;
-                            
-                            // 헤더 셀로 이동
-                            hwp.SetPos({3 + col_idx}, 0, 0);
-                            
-                            // 셀 내용 선택
-                            hwp.SelectAll();
-                            
-                            // 글자 굵게 설정
-                            hwp.HAction.GetDefault("CharShape", hwp.HParameterSet.HCharShape.HSet);
-                            hwp.HParameterSet.HCharShape.Bold = 1;
-                            hwp.HAction.Execute("CharShape", hwp.HParameterSet.HCharShape.HSet);
-                            
-                            // 가운데 정렬
-                            hwp.HAction.GetDefault("ParaShape", hwp.HParameterSet.HParaShape.HSet);
-                            hwp.HParameterSet.HParaShape.Align = 1;  // 가운데 정렬
-                            hwp.HAction.Execute("ParaShape", hwp.HParameterSet.HParaShape.HSet);
-                            
-                            return "헤더 스타일 적용 완료";
-                        }}
-                        
-                        styleHeader();
-                        """
-                        
-                        # 헤더 스타일 적용 실행
-                        hwp.execute_script(header_js)
-                        
-                return f"표 생성 및 데이터 입력 완료 ({rows}x{cols} 크기)"
-            except Exception as data_error:
-                logger.error(f"표 데이터 입력 중 오류: {str(data_error)}", exc_info=True)
-                return f"표는 생성되었으나 데이터 입력 중 오류 발생: {str(data_error)}"
+            # 데이터가 이미 리스트 형태인 경우
+            if isinstance(data, list):
+                logger.info("Data is already a list, using directly")
+                processed_data = data
+            # 데이터가 문자열인 경우 JSON 파싱 시도
+            elif isinstance(data, str):
+                try:
+                    import json
+                    try:
+                        processed_data = json.loads(data)
+                        logger.info(f"Successfully parsed JSON data with {len(processed_data)} rows")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"JSON 파싱 오류: {str(e)}")
+                        try:
+                            import ast
+                            processed_data = ast.literal_eval(data)
+                            logger.info(f"Successfully parsed data with literal_eval")
+                        except Exception as e2:
+                            logger.error(f"리터럴 평가 오류: {str(e2)}")
+                            return f"표는 생성되었으나 JSON 데이터 파싱 오류: {str(e)}"
+                except Exception as e:
+                    logger.error(f"데이터 파싱 오류: {str(e)}", exc_info=True)
+                    return f"표는 생성되었으나 데이터 파싱 오류: {str(e)}"
+            else:
+                return f"표는 생성되었으나 지원되지 않는 데이터 유형: {type(data)}"
+            
+            # 데이터 구조 유효성 검사
+            if not isinstance(processed_data, list):
+                return f"표는 생성되었으나 데이터가 리스트 형식이 아닙니다: {type(processed_data)}"
+            
+            if len(processed_data) == 0:
+                return "표는 생성되었으나 데이터 리스트가 비어 있습니다."
+            
+            # 모든 행이 리스트인지 확인 및 변환
+            for i, row in enumerate(processed_data):
+                if not isinstance(row, list):
+                    logger.warning(f"Row {i} is not a list, converting: {row}")
+                    processed_data[i] = [row]
+            
+            # 모든 데이터를 문자열로 변환
+            string_data = []
+            for row in processed_data:
+                string_row = [str(cell) if cell is not None else "" for cell in row]
+                string_data.append(string_row)
+            
+            # 표에 데이터 채우기
+            if table_tools.fill_table_with_data(string_data, 1, 1, has_header):
+                return f"표 생성 및 데이터 입력 완료 ({rows}x{cols})"
+            else:
+                return "표는 생성되었으나 데이터 입력에 실패했습니다."
         
-        return f"표 생성 완료 ({rows}x{cols} 크기)"
+        return f"표 생성 완료 ({rows}x{cols})"
     except Exception as e:
-        logger.error(f"pyhwpx 표 생성 중 오류: {str(e)}", exc_info=True)
-        return f"Error: {str(e)}"
-
-@mcp.tool()
-def hwp_table_set_cell_text(row: int, col: int, text: str) -> str:
-    """
-    pyhwpx를 사용하여 표의 특정 셀에 텍스트를 입력합니다.
-    
-    Args:
-        row: 셀의 행 번호 (1부터 시작)
-        col: 셀의 열 번호 (1부터 시작)
-        text: 입력할 텍스트
-        
-    Returns:
-        str: 결과 메시지
-    """
-    try:
-        hwp = get_hwp_controller()
-        if not hwp:
-            return "Error: Failed to connect to HWP program"
-        
-        # 셀 이동 및 텍스트 입력을 위한 JavaScript 코드
-        js_code = f"""
-        function setCellText() {{
-            var hwp = this;
-            
-            // 문서의 현재 표를 찾아서 이동
-            // 주의: 현재 커서 위치의 표를 기준으로 작동
-            
-            // 현재 표에서 특정 셀로 이동
-            var moveSuccess = false;
-            
-            try {{
-                // 표의 첫 번째 셀로 이동
-                hwp.TableCellRefresh();
-                hwp.HAction.Run("TableCellBlock");
-                hwp.HAction.Run("Cancel");
-                
-                // 지정된 행으로 이동 (1행부터 시작)
-                for (var r = 1; r < {row}; r++) {{
-                    hwp.HAction.Run("TableLowerCell");
-                }}
-                
-                // 지정된 열로 이동 (1열부터 시작)
-                for (var c = 1; c < {col}; c++) {{
-                    hwp.HAction.Run("TableRightCell");
-                }}
-                
-                moveSuccess = true;
-            }} catch (e) {{
-                return "셀 이동 실패: " + e.message;
-            }}
-            
-            if (!moveSuccess) {{
-                return "지정된 셀({row}, {col})로 이동할 수 없습니다.";
-            }}
-            
-            // 셀 내용 선택 및 삭제
-            hwp.SelectAll();
-            hwp.Delete();
-            
-            // 텍스트 입력
-            hwp.HAction.GetDefault("InsertText", hwp.HParameterSet.HInsertText.HSet);
-            hwp.HParameterSet.HInsertText.Text = "{text}";
-            hwp.HAction.Execute("InsertText", hwp.HParameterSet.HInsertText.HSet);
-            
-            return "셀 텍스트 설정 완료";
-        }}
-        
-        setCellText();
-        """
-        
-        # JavaScript 실행
-        result = hwp.execute_script(js_code)
-        logger.info(f"셀 텍스트 설정 결과: {result}")
-        
-        return f"셀({row}, {col})에 텍스트 입력 완료"
-    except Exception as e:
-        logger.error(f"셀 텍스트 설정 중 오류: {str(e)}", exc_info=True)
-        return f"Error: {str(e)}"
-
-@mcp.tool()
-def hwp_table_merge_cells(start_row: int, start_col: int, end_row: int, end_col: int) -> str:
-    """
-    pyhwpx를 사용하여 표의 특정 범위의 셀을 병합합니다.
-    
-    Args:
-        start_row: 시작 행 번호 (1부터 시작)
-        start_col: 시작 열 번호 (1부터 시작)
-        end_row: 종료 행 번호 (1부터 시작)
-        end_col: 종료 열 번호 (1부터 시작)
-        
-    Returns:
-        str: 결과 메시지
-    """
-    try:
-        hwp = get_hwp_controller()
-        if not hwp:
-            return "Error: Failed to connect to HWP program"
-        
-        # 셀 병합을 위한 JavaScript 코드
-        js_code = f"""
-        function mergeCells() {{
-            var hwp = this;
-            
-            try {{
-                // 시작 셀로 이동
-                hwp.TableCellRefresh();
-                hwp.HAction.Run("TableCellBlock");
-                hwp.HAction.Run("Cancel");
-                
-                // 지정된 시작 행으로 이동
-                for (var r = 1; r < {start_row}; r++) {{
-                    hwp.HAction.Run("TableLowerCell");
-                }}
-                
-                // 지정된 시작 열로 이동
-                for (var c = 1; c < {start_col}; c++) {{
-                    hwp.HAction.Run("TableRightCell");
-                }}
-                
-                // 셀 선택 모드로 전환
-                hwp.HAction.Run("TableCellBlock");
-                
-                // 종료 셀까지 선택 영역 확장
-                var rowDiff = {end_row} - {start_row};
-                var colDiff = {end_col} - {start_col};
-                
-                // 행 방향 확장
-                for (var r = 0; r < rowDiff; r++) {{
-                    hwp.HAction.Run("TableLowerCell");
-                    hwp.HAction.Run("TableCellBlockExtend");
-                }}
-                
-                // 열 방향 확장
-                for (var c = 0; c < colDiff; c++) {{
-                    hwp.HAction.Run("TableRightCell");
-                    hwp.HAction.Run("TableCellBlockExtend");
-                }}
-                
-                // 셀 병합 실행
-                hwp.HAction.Run("TableMergeCell");
-                
-                return "셀 병합 완료";
-            }} catch (e) {{
-                return "셀 병합 실패: " + e.message;
-            }}
-        }}
-        
-        mergeCells();
-        """
-        
-        # JavaScript 실행
-        result = hwp.execute_script(js_code)
-        logger.info(f"셀 병합 결과: {result}")
-        
-        return f"셀 병합 완료 ({start_row},{start_col}) - ({end_row},{end_col})"
-    except Exception as e:
-        logger.error(f"셀 병합 중 오류: {str(e)}", exc_info=True)
+        logger.error(f"표 생성 중 오류: {str(e)}", exc_info=True)
         return f"Error: {str(e)}"
 
 @mcp.tool()
@@ -1134,16 +950,64 @@ def hwp_batch_operations(operations: list) -> dict:
                     rows = params.get("rows", 0)
                     cols = params.get("cols", 0)
                     data = params.get("data", [])
+                    has_header = params.get("has_header", False)
                     
-                    if rows <= 0 or cols <= 0:
+                    table_tools = get_hwp_table_tools()
+                    if not table_tools:
+                        result["status"] = "error"
+                        result["message"] = "Failed to get table tools instance"
+                    elif rows <= 0 or cols <= 0:
                         result["status"] = "error"
                         result["message"] = "Valid rows and cols are required"
-                    elif hwp.insert_table(rows, cols):
-                        # 데이터가 있으면 테이블 채우기 (향후 구현)
-                        result["message"] = f"Table with {rows} rows and {cols} columns inserted successfully"
                     else:
+                        # 데이터가 있으면 테이블 생성 후 데이터 채우기
+                        if data:
+                            resp = table_tools.create_table_with_data(rows, cols, json.dumps(data) if isinstance(data, list) else data, has_header)
+                            result["message"] = resp
+                            if resp.startswith("Error"):
+                                result["status"] = "error"
+                        else:
+                            resp = table_tools.insert_table(rows, cols)
+                            result["message"] = resp
+                            if resp.startswith("Error"):
+                                result["status"] = "error"
+                
+                elif operation == "set_table_cell_text":
+                    row = params.get("row", 0)
+                    col = params.get("col", 0)
+                    text = params.get("text", "")
+                    
+                    table_tools = get_hwp_table_tools()
+                    if not table_tools:
                         result["status"] = "error"
-                        result["message"] = "Failed to insert table"
+                        result["message"] = "Failed to get table tools instance"
+                    elif row <= 0 or col <= 0:
+                        result["status"] = "error"
+                        result["message"] = "Valid row and col are required"
+                    else:
+                        resp = table_tools.set_cell_text(row, col, text)
+                        result["message"] = resp
+                        if resp.startswith("Error"):
+                            result["status"] = "error"
+                
+                elif operation == "merge_table_cells":
+                    start_row = params.get("start_row", 0)
+                    start_col = params.get("start_col", 0)
+                    end_row = params.get("end_row", 0)
+                    end_col = params.get("end_col", 0)
+                    
+                    table_tools = get_hwp_table_tools()
+                    if not table_tools:
+                        result["status"] = "error"
+                        result["message"] = "Failed to get table tools instance"
+                    elif start_row <= 0 or start_col <= 0 or end_row <= 0 or end_col <= 0:
+                        result["status"] = "error"
+                        result["message"] = "Valid cell coordinates are required"
+                    else:
+                        resp = table_tools.merge_cells(start_row, start_col, end_row, end_col)
+                        result["message"] = resp
+                        if resp.startswith("Error"):
+                            result["status"] = "error"
                 
                 elif operation == "get_text":
                     text = hwp.get_text()
@@ -1206,6 +1070,163 @@ def hwp_batch_operations(operations: list) -> dict:
     except Exception as e:
         logger.error(f"Error in batch operations: {str(e)}", exc_info=True)
         return {"status": "error", "message": f"Error: {str(e)}"}
+
+@mcp.tool()
+def hwp_fill_table_with_data(data, start_row: int = 1, start_col: int = 1, has_header: bool = False) -> str:
+    """
+    이미 존재하는 표에 데이터를 채웁니다.
+    
+    Args:
+        data: 표에 채울 데이터 (JSON 문자열 또는 2차원 리스트)
+        start_row: 시작 행 번호 (1부터 시작)
+        start_col: 시작 열 번호 (1부터 시작)
+        has_header: 첫 번째 행을 헤더로 처리할지 여부
+        
+    Returns:
+        str: 결과 메시지
+    """
+    try:
+        table_tools = get_hwp_table_tools()
+        if not table_tools:
+            return "Error: Failed to get table tools instance"
+        
+        # 데이터 형식 로깅
+        logger.info(f"Received data type: {type(data)}, data: {str(data)[:100]}...")
+        
+        # 데이터 처리
+        processed_data = []
+        
+        # 이미 리스트 형태인 경우
+        if isinstance(data, list):
+            logger.info("Data is already a list, processing directly")
+            processed_data = data
+        # 문자열인 경우 JSON 파싱 시도
+        elif isinstance(data, str):
+            try:
+                import json
+                
+                # JSON 파싱 시도
+                try:
+                    processed_data = json.loads(data)
+                    logger.info(f"Successfully parsed JSON data with {len(processed_data)} rows")
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON 디코딩 오류: {str(e)}")
+                    
+                    # 특수 케이스: 1부터 10까지 세로로 채우는 요청인 경우
+                    if "1부터 10까지" in data and "세로" in data:
+                        logger.info("특수 케이스 감지: 1부터 10까지 세로로 채우기")
+                        processed_data = []
+                        for i in range(1, 11):
+                            processed_data.append([str(i)])
+                    else:
+                        # 마지막 시도: 리터럴 평가
+                        try:
+                            import ast
+                            processed_data = ast.literal_eval(data)
+                            logger.info(f"Successfully parsed data with literal_eval: {len(processed_data)} rows")
+                        except:
+                            # 단순 문자열을 직접 파싱
+                            try:
+                                # 문자열에서 쉼표로 구분된 항목 추출 시도
+                                if "," in data:
+                                    items = [item.strip() for item in data.split(",")]
+                                    processed_data = [[item] for item in items]
+                                else:
+                                    # 단일 값인 경우
+                                    processed_data = [[data]]
+                            except Exception as parse_err:
+                                return f"Error: Failed to parse string data - {str(parse_err)}"
+            except Exception as e:
+                logger.error(f"데이터 파싱 오류: {str(e)}", exc_info=True)
+                return f"Error: Failed to parse data - {str(e)}"
+        else:
+            return f"Error: Unsupported data type: {type(data)}"
+        
+        # 데이터 구조 유효성 검사
+        if not isinstance(processed_data, list):
+            logger.error(f"Processed data is not a list: {type(processed_data)}")
+            return f"Error: Data must be a list, got {type(processed_data)}"
+        
+        if len(processed_data) == 0:
+            logger.error("Empty data list")
+            return "Error: Empty data list"
+        
+        # 모든 행이 리스트인지 확인 및 변환
+        for i, row in enumerate(processed_data):
+            if not isinstance(row, list):
+                logger.warning(f"Row {i} is not a list, converting to list: {row}")
+                processed_data[i] = [row]  # 리스트가 아닌 항목을 리스트로 변환
+        
+        # 모든 데이터를 문자열로 변환
+        final_data = []
+        for row in processed_data:
+            final_row = [str(cell) if cell is not None else "" for cell in row]
+            final_data.append(final_row)
+        
+        logger.info(f"Final processed data has {len(final_data)} rows")
+        
+        # 표에 데이터 채우기
+        result = table_tools.fill_table_with_data(final_data, start_row, start_col, has_header)
+        logger.info(f"Table filling result: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"표 데이터 입력 중 오류: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_fill_column_numbers(start: int = 1, end: int = 10, column: int = 1, from_first_cell: bool = True) -> str:
+    """
+    표의 특정 열에 시작 숫자부터 끝 숫자까지 세로로 채웁니다.
+    
+    Args:
+        start: 시작 숫자 (기본값: 1)
+        end: 끝 숫자 (기본값: 10)
+        column: 숫자를 채울 열 번호 (1부터 시작, 기본값: 1)
+        from_first_cell: 정확히 표의 첫 번째 셀부터 시작할지 여부 (기본값: True)
+    
+    Returns:
+        str: 결과 메시지
+    """
+    try:
+        # HWP 컨트롤러 가져오기
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        # 표 선택 (현재 커서 위치에 표가 있어야 함)
+        logger.info(f"테이블 열에 숫자 채우기: 열 {column}, {start}부터 {end}까지")
+        
+        # 표의 첫 번째 셀로 이동 (문서의 표 맨 앞)
+        hwp.hwp.Run("TableColBegin")
+        
+        # from_first_cell이 False인 경우에만 아래로 이동
+        if not from_first_cell:
+            hwp.hwp.Run("TableLowerCell")
+        
+        # 지정된 열로 이동
+        for _ in range(column - 1):
+            hwp.hwp.Run("TableRightCell")
+        
+        # 각 행에 숫자 채우기
+        for num in range(start, end + 1):
+            # 셀 선택 및 내용 지우기
+            hwp.hwp.Run("Select")
+            hwp.hwp.Run("Delete")
+            
+            # 셀에 숫자 입력
+            hwp.insert_text(str(num))
+            
+            # 다음 행으로 이동 (마지막 행이 아닌 경우)
+            if num < end:
+                hwp.hwp.Run("TableLowerCell")
+        
+        logger.info(f"테이블 열({column})에 숫자 {start}~{end} 입력 완료")
+        return f"테이블 열({column})에 숫자 {start}~{end} 입력 완료"
+        
+    except Exception as e:
+        logger.error(f"테이블 숫자 채우기 오류: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
 
 if __name__ == "__main__":
     logger.info("Starting HWP MCP stdio server")

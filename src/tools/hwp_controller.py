@@ -192,10 +192,30 @@ class HwpController:
             if current_pos:
                 self.hwp.SetPos(*current_pos)
             
+            # 셀 내부에 있는지 확인하고 명시적으로 셀 위치 고정
+            try:
+                # 현재 위치가 표 안에 있는지 확인
+                self.hwp.Run("TableCellBlock")  # 예외 발생하지 않으면 표 안
+                self.hwp.Run("Cancel")          # 선택 취소
+                # 현재 셀에 커서 고정
+                self.hwp.Run("TableSelCell")    # 현재 셀 선택
+                self.hwp.Run("Cancel")          # 선택 취소
+            except:
+                # 표 안이 아니면 무시
+                pass
+            
             # 텍스트 삽입을 위한 액션 초기화
             self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
             self.hwp.HParameterSet.HInsertText.Text = text
             self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+            
+            # 입력 후 현재 위치로 다시 이동 (위치 보존)
+            if current_pos:
+                try:
+                    self.hwp.SetPos(*current_pos)
+                except:
+                    # 위치 복원 실패시 무시
+                    pass
             
             return True
         except Exception as e:
@@ -563,29 +583,7 @@ class HwpController:
         except Exception as e:
             print(f"셀필드 값 채우기 실패: {e}")
             return False
-
-    def execute_script(self, script: str) -> str:
-        """
-        한글에서 JavaScript 코드를 실행합니다.
         
-        Args:
-            script (str): 실행할 JavaScript 코드
-            
-        Returns:
-            str: 스크립트 실행 결과
-        """
-        try:
-            if not self.is_hwp_running:
-                return "Error: HWP is not running"
-            
-            # GetTextFile로 실행 및 결과 반환 (텍스트로 반환됨)
-            result = self.hwp.GetTextFile("JS", script)
-            return result if result else "Script executed without result"
-        except Exception as e:
-            error_msg = f"JavaScript 실행 실패: {e}"
-            print(error_msg)
-            return f"Error: {error_msg}"
-
     def select_last_text(self) -> bool:
         """
         현재 단락의 마지막으로 입력된 텍스트를 선택합니다.
@@ -613,4 +611,97 @@ class HwpController:
             return True
         except Exception as e:
             print(f"텍스트 선택 실패: {e}")
-            return False 
+            return False
+
+    def fill_table_with_data(self, data: List[List[str]], start_row: int = 1, start_col: int = 1, has_header: bool = False) -> bool:
+        """
+        현재 커서 위치의 표에 데이터를 채웁니다.
+        
+        Args:
+            data (List[List[str]]): 채울 데이터 2차원 리스트 (행 x 열)
+            start_row (int): 시작 행 번호 (1부터 시작)
+            start_col (int): 시작 열 번호 (1부터 시작)
+            has_header (bool): 첫 번째 행을 헤더로 처리할지 여부
+            
+        Returns:
+            bool: 작업 성공 여부
+        """
+        try:
+            if not self.is_hwp_running:
+                return False
+                
+            # 현재 위치 저장 (나중에 복원을 위해)
+            original_pos = self.hwp.GetPos()
+            
+            # ===== 새로운 접근법: 선택-취소로 표 처리 =====
+            
+            # 1. 현재 커서가 표 안에 있다고 가정하고 셀을 선택
+            self.hwp.Run("Select")
+            
+            # 2. 표 첫 번째 셀로 가기 위한 일련의 명령
+            self.hwp.Run("TableSelCell")  # 현재 셀 선택
+            self.hwp.Run("TableSelTable") # 표 전체 선택
+            self.hwp.Run("Cancel")        # 선택 취소 (커서는 표의 시작 부분에 위치)
+            
+            # 3. 이제 셀 선택 - 첫 번째 셀이 선택됨
+            self.hwp.Run("TableSelCell")
+            self.hwp.Run("Cancel")
+            
+            # 4. 첫 번째 셀 내부로 커서 이동
+            self.hwp.Run("CharRight")
+            self.hwp.Run("CharLeft")
+            
+            # 시작 위치로 이동 (start_row, start_col에 맞게)
+            current_row, current_col = 1, 1
+            
+            # 시작 행으로 이동 (단, 첫 번째 행이면 이동하지 않음)
+            for _ in range(start_row - 1):  # 1행이면 0번, 2행이면 1번 반복
+                self.hwp.Run("TableLowerCell")
+                current_row += 1
+                
+            # 시작 열로 이동 (단, 첫 번째 열이면 이동하지 않음)
+            for _ in range(start_col - 1):  # 1열이면 0번, 2열이면 1번 반복
+                self.hwp.Run("TableRightCell")
+                current_col += 1
+            
+            # 데이터 채우기
+            for row_idx, row_data in enumerate(data):
+                for col_idx, cell_value in enumerate(row_data):
+                    # 셀 위치 명시적 확인 및 선택 (중요)
+                    self.hwp.Run("TableSelCell")  # 현재 셀 선택
+                    self.hwp.Run("Cancel")        # 선택 취소 (커서는 셀 안에 위치)
+                    
+                    # 이제 이 셀에 입력
+                    self.hwp.Run("Select")        # 셀 내용 선택
+                    self.hwp.Run("Delete")        # 내용 삭제
+                    
+                    # 셀에 값 입력
+                    if has_header and row_idx == 0:
+                        # 헤더 행인 경우 스타일 적용 (굵게)
+                        self.set_font_style(bold=True)
+                        self._insert_text_direct(cell_value)
+                        self.set_font_style(bold=False)  # 스타일 초기화
+                    else:
+                        self._insert_text_direct(cell_value)
+                    
+                    # 다음 셀로 이동 (마지막 셀이 아닌 경우)
+                    if col_idx < len(row_data) - 1:
+                        self.hwp.Run("TableRightCell")
+                    
+                # 다음 행의 첫 열로 이동 (마지막 행이 아닌 경우)
+                if row_idx < len(data) - 1:
+                    # 현재 행의 첫 셀로 이동
+                    for _ in range(len(row_data) - 1):
+                        self.hwp.Run("TableLeftCell")
+                    # 아래 행으로 이동
+                    self.hwp.Run("TableLowerCell")
+            
+            # 원래 위치로 복원 (선택 사항)
+            if original_pos:
+                self.hwp.SetPos(*original_pos)
+                
+            return True
+            
+        except Exception as e:
+            print(f"표 데이터 채우기 실패: {e}")
+            return False
