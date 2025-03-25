@@ -143,12 +143,13 @@ class HwpController:
             print(f"문서 저장 실패: {e}")
             return False
 
-    def insert_text(self, text: str) -> bool:
+    def insert_text(self, text: str, preserve_linebreaks: bool = True) -> bool:
         """
         현재 커서 위치에 텍스트를 삽입합니다.
         
         Args:
             text (str): 삽입할 텍스트
+            preserve_linebreaks (bool): 줄바꿈 유지 여부
             
         Returns:
             bool: 삽입 성공 여부
@@ -157,21 +158,48 @@ class HwpController:
             if not self.is_hwp_running:
                 return False
             
-            # 현재 글꼴 설정이 적용되도록 수정
-            self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
-            self.hwp.HParameterSet.HInsertText.Text = text
-            
-            # 글자 모양 유지 옵션 설정 - 이 옵션이 false이면 현재 글꼴 설정 무시
-            try:
-                self.hwp.HParameterSet.HInsertText.KeepCharShape = True
-            except:
-                # 구버전 API에서는 이 속성이 없을 수 있음, 무시하고 계속 진행
-                pass
-            
-            self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
-            return True
+            if preserve_linebreaks and '\n' in text:
+                # 줄바꿈이 포함된 경우 줄 단위로 처리
+                lines = text.split('\n')
+                for i, line in enumerate(lines):
+                    if i > 0:  # 첫 줄이 아니면 줄바꿈 추가
+                        self.insert_paragraph()
+                    if line.strip():  # 빈 줄이 아니면 텍스트 삽입
+                        self._insert_text_direct(line)
+                return True
+            else:
+                # 줄바꿈이 없거나 유지하지 않는 경우 한 번에 처리
+                return self._insert_text_direct(text)
         except Exception as e:
             print(f"텍스트 삽입 실패: {e}")
+            return False
+
+    def _insert_text_direct(self, text: str) -> bool:
+        """
+        텍스트를 직접 삽입하는 내부 메서드입니다.
+        
+        Args:
+            text (str): 삽입할 텍스트
+            
+        Returns:
+            bool: 삽입 성공 여부
+        """
+        try:
+            # 현재 위치 저장
+            current_pos = self.hwp.GetPos()
+            
+            # 커서를 현재 위치의 시작점으로 이동 (이전 스타일의 영향을 받지 않도록)
+            if current_pos:
+                self.hwp.SetPos(*current_pos)
+            
+            # 텍스트 삽입을 위한 액션 초기화
+            self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+            self.hwp.HParameterSet.HInsertText.Text = text
+            self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+            
+            return True
+        except Exception as e:
+            print(f"텍스트 직접 삽입 실패: {e}")
             return False
 
     def set_font(self, font_name: str, font_size: int, bold: bool = False, italic: bool = False) -> bool:
@@ -223,86 +251,33 @@ class HwpController:
             if not self.is_hwp_running:
                 return False
             
-            # 오류 방지를 위해 선택 영역이 없는 경우에도 동작하도록 설정
-            # 현재 위치를 기억
-            pos_before = self._get_current_position()
+            # 글꼴 설정을 위한 액션 초기화
+            self.hwp.HAction.GetDefault("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
             
-            # 1. 기본 글자 모양을 설정 (다음 입력에 적용)
-            try:
-                # 기본 글자 모양 가져오기
-                self.hwp.HAction.GetDefault("DefaultCharShape", self.hwp.HParameterSet.HCharShape.HSet)
-                
-                # 폰트 이름 설정
-                if font_name:
-                    self.hwp.HParameterSet.HCharShape.FaceNameHangul = font_name
-                    self.hwp.HParameterSet.HCharShape.FaceNameEnglish = font_name
-                    self.hwp.HParameterSet.HCharShape.FaceNameOther = font_name
-                    self.hwp.HParameterSet.HCharShape.FaceNameSymbol = font_name
-                    self.hwp.HParameterSet.HCharShape.FaceNameUser = font_name
-                
-                # 폰트 크기 설정
-                if font_size:
-                    self.hwp.HParameterSet.HCharShape.Height = font_size * 100
-                
-                # 굵게, 기울임꼴, 밑줄 설정
-                self.hwp.HParameterSet.HCharShape.Bold = 1 if bold else 0
-                self.hwp.HParameterSet.HCharShape.Italic = 1 if italic else 0
-                self.hwp.HParameterSet.HCharShape.UnderlineType = 1 if underline else 0
-                
-                # 기본 글자 모양 적용
-                self.hwp.HAction.Execute("DefaultCharShape", self.hwp.HParameterSet.HCharShape.HSet)
-            except Exception as e_default:
-                print(f"기본 글자 모양 설정 실패: {e_default} (무시하고 계속 진행)")
-                # 기본 글자 모양 설정 실패는 무시
+            # 글꼴 이름 설정
+            if font_name:
+                self.hwp.HParameterSet.HCharShape.FaceNameHangul = font_name
+                self.hwp.HParameterSet.HCharShape.FaceNameLatin = font_name
+                self.hwp.HParameterSet.HCharShape.FaceNameHanja = font_name
+                self.hwp.HParameterSet.HCharShape.FaceNameJapanese = font_name
+                self.hwp.HParameterSet.HCharShape.FaceNameOther = font_name
+                self.hwp.HParameterSet.HCharShape.FaceNameSymbol = font_name
+                self.hwp.HParameterSet.HCharShape.FaceNameUser = font_name
             
-            # 2. 현재 문단의 글꼴 설정
-            try:
-                # 현재 위치의 글자 모양 가져오기
-                self.hwp.HAction.GetDefault("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
-                
-                # 폰트 이름 설정
-                if font_name:
-                    self.hwp.HParameterSet.HCharShape.FaceNameHangul = font_name
-                    self.hwp.HParameterSet.HCharShape.FaceNameEnglish = font_name
-                    self.hwp.HParameterSet.HCharShape.FaceNameOther = font_name
-                    self.hwp.HParameterSet.HCharShape.FaceNameSymbol = font_name
-                    self.hwp.HParameterSet.HCharShape.FaceNameUser = font_name
-                
-                # 폰트 크기 설정
-                if font_size:
-                    self.hwp.HParameterSet.HCharShape.Height = font_size * 100
-                
-                # 굵게, 기울임꼴, 밑줄 설정
-                self.hwp.HParameterSet.HCharShape.Bold = 1 if bold else 0
-                self.hwp.HParameterSet.HCharShape.Italic = 1 if italic else 0
-                self.hwp.HParameterSet.HCharShape.UnderlineType = 1 if underline else 0
-                
-                # 글자 모양 적용
-                self.hwp.HAction.Execute("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
-            except Exception as e:
-                print(f"현재 위치 글자 모양 설정 실패: {e} (무시하고 계속 진행)")
-                # 실패하더라도 계속 진행
+            # 글꼴 크기 설정 (hwpunit, 10pt = 1000)
+            if font_size:
+                self.hwp.HParameterSet.HCharShape.Height = font_size * 100
             
-            # 3. 직접 매크로 명령 사용 (좀 더 강력한 방식)
-            try:
-                size_pt = font_size * 100 if font_size else 0  # 0이면 현재 크기 유지
-                boldValue = "1" if bold else "0"
-                italicValue = "1" if italic else "0"
-                underlineValue = "1" if underline else "0"
-                
-                # 폰트 이름이 None이면 빈 문자열로 처리 (현재 폰트 유지)
-                font_name_str = font_name if font_name else ""
-                
-                # 직접 매크로 명령 실행 (현재 위치에서)
-                self.hwp.Run(f'CharShape "{font_name_str}" {size_pt} {boldValue} {italicValue} {underlineValue} 0 "" 0 "" 0')
-            except Exception as e:
-                print(f"매크로 명령 글꼴 설정 실패: {e} (무시하고 계속 진행)")
-                # 실패하더라도 계속 진행
+            # 스타일 설정
+            self.hwp.HParameterSet.HCharShape.Bold = bold
+            self.hwp.HParameterSet.HCharShape.Italic = italic
+            self.hwp.HParameterSet.HCharShape.UnderlineType = 1 if underline else 0
             
-            # 세 가지 방법을 모두 시도한 뒤에도 위치 유지
-            self._set_position(pos_before)
+            # 변경사항 적용
+            self.hwp.HAction.Execute("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
             
             return True
+            
         except Exception as e:
             print(f"글꼴 스타일 설정 실패: {e}")
             return False
