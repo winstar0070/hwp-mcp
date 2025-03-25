@@ -174,6 +174,26 @@ class HwpController:
             print(f"텍스트 삽입 실패: {e}")
             return False
 
+    def _set_table_cursor(self) -> bool:
+        """
+        표 안에서 커서 위치를 제어하는 내부 메서드입니다.
+        현재 셀을 선택하고 취소하여 커서를 셀 안에 위치시킵니다.
+        
+        Returns:
+            bool: 성공 여부
+        """
+        try:
+            # 현재 셀 선택
+            self.hwp.Run("TableSelCell")
+            # 선택 취소 (커서는 셀 안에 위치)
+            self.hwp.Run("Cancel")
+            # 셀 내부로 커서 이동을 확실히
+            self.hwp.Run("CharRight")
+            self.hwp.Run("CharLeft")
+            return True
+        except:
+            return False
+
     def _insert_text_direct(self, text: str) -> bool:
         """
         텍스트를 직접 삽입하는 내부 메서드입니다.
@@ -185,42 +205,10 @@ class HwpController:
             bool: 삽입 성공 여부
         """
         try:
-            # 현재 위치 저장
-            current_pos = self.hwp.GetPos()
-            
-            # 커서를 현재 위치의 시작점으로 이동 (이전 스타일의 영향을 받지 않도록)
-            if current_pos:
-                self.hwp.SetPos(*current_pos)
-            
-            # 표 내부에 있는지 확인하는 플래그
-            is_in_table = False
-            
-            # 셀 내부에 있는지 확인하고 명시적으로 셀 위치 고정
-            try:
-                # 현재 위치가 표 안에 있는지 확인
-                self.hwp.Run("TableCellBlock")  # 예외 발생하지 않으면 표 안
-                self.hwp.Run("Cancel")          # 선택 취소
-                # 현재 셀에 커서 고정
-                self.hwp.Run("TableSelCell")    # 현재 셀 선택
-                self.hwp.Run("Cancel")          # 선택 취소
-                is_in_table = True  # 표 안에 있음을 표시
-            except:
-                # 표 안이 아니면 무시
-                is_in_table = False
-            
             # 텍스트 삽입을 위한 액션 초기화
             self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
             self.hwp.HParameterSet.HInsertText.Text = text
             self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
-            
-            # 표 내부에 있는 경우에만 커서 위치 복원
-            if is_in_table and current_pos:
-                try:
-                    self.hwp.SetPos(*current_pos)
-                except:
-                    # 위치 복원 실패시 무시
-                    pass
-            
             return True
         except Exception as e:
             print(f"텍스트 직접 삽입 실패: {e}")
@@ -637,73 +625,54 @@ class HwpController:
             # 현재 위치 저장 (나중에 복원을 위해)
             original_pos = self.hwp.GetPos()
             
-            # ===== 새로운 접근법: 선택-취소로 표 처리 =====
-            
-            # 1. 현재 커서가 표 안에 있다고 가정하고 셀을 선택
-            self.hwp.Run("Select")
-            
-            # 2. 표 첫 번째 셀로 가기 위한 일련의 명령
+            # 1. 표 첫 번째 셀로 이동
             self.hwp.Run("TableSelCell")  # 현재 셀 선택
             self.hwp.Run("TableSelTable") # 표 전체 선택
             self.hwp.Run("Cancel")        # 선택 취소 (커서는 표의 시작 부분에 위치)
+            self.hwp.Run("TableSelCell")  # 첫 번째 셀 선택
+            self.hwp.Run("Cancel")        # 선택 취소
             
-            # 3. 이제 셀 선택 - 첫 번째 셀이 선택됨
-            self.hwp.Run("TableSelCell")
-            self.hwp.Run("Cancel")
-            
-            # 4. 첫 번째 셀 내부로 커서 이동
-            self.hwp.Run("CharRight")
-            self.hwp.Run("CharLeft")
-            
-            # 시작 위치로 이동 (start_row, start_col에 맞게)
-            current_row, current_col = 1, 1
-            
-            # 시작 행으로 이동 (단, 첫 번째 행이면 이동하지 않음)
-            for _ in range(start_row - 1):  # 1행이면 0번, 2행이면 1번 반복
+            # 시작 위치로 이동
+            for _ in range(start_row - 1):
                 self.hwp.Run("TableLowerCell")
-                current_row += 1
                 
-            # 시작 열로 이동 (단, 첫 번째 열이면 이동하지 않음)
-            for _ in range(start_col - 1):  # 1열이면 0번, 2열이면 1번 반복
+            for _ in range(start_col - 1):
                 self.hwp.Run("TableRightCell")
-                current_col += 1
             
             # 데이터 채우기
             for row_idx, row_data in enumerate(data):
                 for col_idx, cell_value in enumerate(row_data):
-                    # 셀 위치 명시적 확인 및 선택 (중요)
-                    self.hwp.Run("TableSelCell")  # 현재 셀 선택
-                    self.hwp.Run("Cancel")        # 선택 취소 (커서는 셀 안에 위치)
-                    
-                    # 이제 이 셀에 입력
-                    self.hwp.Run("Select")        # 셀 내용 선택
-                    self.hwp.Run("Delete")        # 내용 삭제
+                    # 셀 선택 및 내용 삭제
+                    self.hwp.Run("TableSelCell")
+                    self.hwp.Run("Delete")
                     
                     # 셀에 값 입력
                     if has_header and row_idx == 0:
-                        # 헤더 행인 경우 스타일 적용 (굵게)
                         self.set_font_style(bold=True)
-                        self._insert_text_direct(cell_value)
-                        self.set_font_style(bold=False)  # 스타일 초기화
+                        self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+                        self.hwp.HParameterSet.HInsertText.Text = cell_value
+                        self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+                        self.set_font_style(bold=False)
                     else:
-                        self._insert_text_direct(cell_value)
+                        self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+                        self.hwp.HParameterSet.HInsertText.Text = cell_value
+                        self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
                     
                     # 다음 셀로 이동 (마지막 셀이 아닌 경우)
                     if col_idx < len(row_data) - 1:
                         self.hwp.Run("TableRightCell")
-                    
-                # 다음 행의 첫 열로 이동 (마지막 행이 아닌 경우)
+                
+                # 다음 행으로 이동 (마지막 행이 아닌 경우)
                 if row_idx < len(data) - 1:
-                    # 현재 행의 첫 셀로 이동
                     for _ in range(len(row_data) - 1):
                         self.hwp.Run("TableLeftCell")
-                    # 아래 행으로 이동
                     self.hwp.Run("TableLowerCell")
             
-            # 원래 위치로 복원 (선택 사항)
-            if original_pos:
-                self.hwp.SetPos(*original_pos)
-                
+            # 표 밖으로 커서 이동
+            self.hwp.Run("TableSelCell")  # 현재 셀 선택
+            self.hwp.Run("Cancel")        # 선택 취소
+            self.hwp.Run("MoveDown")      # 아래로 이동
+            
             return True
             
         except Exception as e:
