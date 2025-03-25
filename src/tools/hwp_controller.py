@@ -202,7 +202,8 @@ class HwpController:
             print(f"텍스트 직접 삽입 실패: {e}")
             return False
 
-    def set_font(self, font_name: str, font_size: int, bold: bool = False, italic: bool = False) -> bool:
+    def set_font(self, font_name: str, font_size: int, bold: bool = False, italic: bool = False, 
+                select_previous_text: bool = False) -> bool:
         """
         글꼴 속성을 설정합니다. 현재 위치에서 다음에 입력할 텍스트에 적용됩니다.
         
@@ -211,6 +212,7 @@ class HwpController:
             font_size (int): 글꼴 크기
             bold (bool): 굵게 여부
             italic (bool): 기울임꼴 여부
+            select_previous_text (bool): 이전에 입력한 텍스트를 선택할지 여부
             
         Returns:
             bool: 설정 성공 여부
@@ -225,14 +227,16 @@ class HwpController:
                 font_size=font_size,
                 bold=bold,
                 italic=italic,
-                underline=False
+                underline=False,
+                select_previous_text=select_previous_text
             )
         except Exception as e:
             print(f"글꼴 설정 실패: {e}")
             return False
 
     def set_font_style(self, font_name: str = None, font_size: int = None, 
-                     bold: bool = False, italic: bool = False, underline: bool = False) -> bool:
+                     bold: bool = False, italic: bool = False, underline: bool = False,
+                     select_previous_text: bool = False) -> bool:
         """
         현재 선택된 텍스트의 글꼴 스타일을 설정합니다.
         선택된 텍스트가 없으면, 다음 입력될 텍스트에 적용됩니다.
@@ -243,6 +247,7 @@ class HwpController:
             bold (bool): 굵게 여부
             italic (bool): 기울임꼴 여부
             underline (bool): 밑줄 여부
+            select_previous_text (bool): 이전에 입력한 텍스트를 선택할지 여부
             
         Returns:
             bool: 설정 성공 여부
@@ -250,6 +255,10 @@ class HwpController:
         try:
             if not self.is_hwp_running:
                 return False
+            
+            # 이전 텍스트 선택 옵션이 활성화된 경우 현재 단락의 이전 텍스트 선택
+            if select_previous_text:
+                self.select_last_text()
             
             # 글꼴 설정을 위한 액션 초기화
             self.hwp.HAction.GetDefault("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
@@ -575,4 +584,33 @@ class HwpController:
         except Exception as e:
             error_msg = f"JavaScript 실행 실패: {e}"
             print(error_msg)
-            return f"Error: {error_msg}" 
+            return f"Error: {error_msg}"
+
+    def select_last_text(self) -> bool:
+        """
+        현재 단락의 마지막으로 입력된 텍스트를 선택합니다.
+        
+        Returns:
+            bool: 선택 성공 여부
+        """
+        try:
+            if not self.is_hwp_running:
+                return False
+            
+            # 현재 위치 저장
+            current_pos = self.hwp.GetPos()
+            if not current_pos:
+                return False
+                
+            # 현재 단락의 시작으로 이동
+            self.hwp.Run("MoveLineStart")
+            start_pos = self.hwp.GetPos()
+            
+            # 이전 위치로 돌아가서 선택 영역 생성
+            self.hwp.SetPos(*start_pos)
+            self.hwp.SelectText(start_pos, current_pos)
+            
+            return True
+        except Exception as e:
+            print(f"텍스트 선택 실패: {e}")
+            return False 
