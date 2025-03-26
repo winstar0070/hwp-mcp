@@ -188,6 +188,15 @@ def hwp_insert_text(text: str, preserve_linebreaks: bool = True) -> str:
         if not hwp:
             return "Error: Failed to connect to HWP program"
         
+        # 현재 커서가 표 안에 있는지 확인
+        is_in_table = False
+        try:
+            hwp.hwp.Run("TableCellBlock")
+            hwp.hwp.Run("Cancel")
+            is_in_table = True
+        except:
+            is_in_table = False
+        
         # 줄바꿈 문자 처리
         if preserve_linebreaks and ('\n' in text or '\\n' in text):
             # 이스케이프된 줄바꿈 문자(\n)와 실제 줄바꿈 문자 모두 처리
@@ -208,11 +217,20 @@ def hwp_insert_text(text: str, preserve_linebreaks: bool = True) -> str:
                 return "Text with line breaks inserted successfully"
             else:
                 return "Error: Failed to insert text with line breaks"
-        elif hwp.insert_text(text):
-            logger.info("Successfully inserted text")
-            return "Text inserted successfully"
         else:
-            return "Error: Failed to insert text"
+            if hwp.insert_text(text):
+                # 표 안이 아닐 경우에만 커서를 오른쪽으로 이동
+                if not is_in_table:
+                    # 현재 위치 저장
+                    current_pos = hwp.hwp.GetPos()
+                    if current_pos:
+                        # 텍스트 길이만큼 오른쪽으로 이동
+                        for _ in range(len(text)):
+                            hwp.hwp.Run("CharRight")
+                logger.info("Successfully inserted text")
+                return "Text inserted successfully"
+            else:
+                return "Error: Failed to insert text"
     except Exception as e:
         logger.error(f"Error inserting text: {str(e)}", exc_info=True)
         return f"Error: {str(e)}"
@@ -375,9 +393,21 @@ def hwp_create_table_with_data(rows: int, cols: int, data = None, has_header: bo
         if not table_tools:
             return "Error: Failed to get table tools instance"
         
-        # 표 생성
-        if not table_tools.insert_table(rows, cols):
-            return "Error: Failed to create table"
+        # 현재 커서가 표 안에 있는지 확인
+        hwp = get_hwp_controller()
+        is_in_table = False
+        try:
+            hwp.hwp.Run("TableCellBlock")
+            hwp.hwp.Run("Cancel")
+            is_in_table = True
+        except:
+            is_in_table = False
+        
+        # 표 안에 있지 않은 경우에만 새 표 생성
+        if not is_in_table:
+            # 표 생성
+            if not table_tools.insert_table(rows, cols):
+                return "Error: Failed to create table"
         
         # 데이터가 있는 경우 표 채우기
         if data is not None:
