@@ -914,6 +914,235 @@ def hwp_create_document_from_text(content: str, title: str = None, format_conten
         logger.error(f"Error creating document from text: {str(e)}", exc_info=True)
         return {"status": "error", "message": f"Error: {str(e)}"}
 
+# ============== 문서 편집 고급 기능 도구들 ==============
+
+@mcp.tool()
+def hwp_insert_footnote(text: str, note_text: str) -> str:
+    """Insert a footnote at the current position."""
+    try:
+        if not note_text:
+            return "Error: Footnote content is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.insert_footnote(text, note_text):
+            logger.info("Successfully inserted footnote")
+            return "Footnote inserted successfully"
+        else:
+            return "Error: Failed to insert footnote"
+    except Exception as e:
+        logger.error(f"Error inserting footnote: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_endnote(text: str, note_text: str) -> str:
+    """Insert an endnote at the current position."""
+    try:
+        if not note_text:
+            return "Error: Endnote content is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.insert_endnote(text, note_text):
+            logger.info("Successfully inserted endnote")
+            return "Endnote inserted successfully"
+        else:
+            return "Error: Failed to insert endnote"
+    except Exception as e:
+        logger.error(f"Error inserting endnote: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_hyperlink(text: str, url: str, tooltip: str = "") -> str:
+    """Insert a hyperlink."""
+    try:
+        if not text or not url:
+            return "Error: Both text and URL are required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.insert_hyperlink(text, url, tooltip):
+            logger.info(f"Successfully inserted hyperlink: {text} -> {url}")
+            return f"Hyperlink inserted successfully: {text}"
+        else:
+            return "Error: Failed to insert hyperlink"
+    except Exception as e:
+        logger.error(f"Error inserting hyperlink: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_bookmark(bookmark_name: str) -> str:
+    """Insert a bookmark at the current position."""
+    try:
+        if not bookmark_name:
+            return "Error: Bookmark name is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.insert_bookmark(bookmark_name):
+            logger.info(f"Successfully inserted bookmark: {bookmark_name}")
+            return f"Bookmark '{bookmark_name}' inserted successfully"
+        else:
+            return "Error: Failed to insert bookmark"
+    except Exception as e:
+        logger.error(f"Error inserting bookmark: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_goto_bookmark(bookmark_name: str) -> str:
+    """Go to a specific bookmark."""
+    try:
+        if not bookmark_name:
+            return "Error: Bookmark name is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.goto_bookmark(bookmark_name):
+            logger.info(f"Successfully moved to bookmark: {bookmark_name}")
+            return f"Moved to bookmark '{bookmark_name}' successfully"
+        else:
+            return "Error: Failed to go to bookmark"
+    except Exception as e:
+        logger.error(f"Error going to bookmark: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_comment(comment_text: str, author: str = "User") -> str:
+    """Insert a comment on selected text."""
+    try:
+        if not comment_text:
+            return "Error: Comment text is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.insert_comment(comment_text, author):
+            logger.info("Successfully inserted comment")
+            return "Comment inserted successfully"
+        else:
+            return "Error: Failed to insert comment"
+    except Exception as e:
+        logger.error(f"Error inserting comment: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_search_and_highlight(
+    search_text: str,
+    highlight_color: str = "yellow",
+    case_sensitive: bool = False,
+    whole_word: bool = False
+) -> str:
+    """Search and highlight text in the document."""
+    try:
+        if not search_text:
+            return "Error: Search text is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        count = doc_features.search_and_highlight(
+            search_text, highlight_color, case_sensitive, whole_word
+        )
+        
+        if count > 0:
+            return f"Found and highlighted {count} occurrences of '{search_text}'"
+        else:
+            return f"No occurrences of '{search_text}' found"
+    except Exception as e:
+        logger.error(f"Error in search and highlight: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_watermark(
+    text: str,
+    font_size: int = 72,
+    color: str = "gray",
+    opacity: int = 30,
+    angle: int = -45
+) -> str:
+    """Insert a watermark in the document."""
+    try:
+        if not text:
+            return "Error: Watermark text is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.insert_watermark(text, font_size, color, opacity, angle):
+            logger.info(f"Successfully inserted watermark: {text}")
+            return f"Watermark '{text}' inserted successfully"
+        else:
+            return "Error: Failed to insert watermark"
+    except Exception as e:
+        logger.error(f"Error inserting watermark: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_field(field_type: str, format: str = "") -> str:
+    """Insert a field code (date, time, page number, etc.)."""
+    try:
+        if not field_type:
+            return "Error: Field type is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.insert_field(field_type, format):
+            logger.info(f"Successfully inserted field: {field_type}")
+            return f"Field '{field_type}' inserted successfully"
+        else:
+            return "Error: Failed to insert field"
+    except Exception as e:
+        logger.error(f"Error inserting field: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_set_document_password(
+    read_password: str = "",
+    write_password: str = ""
+) -> str:
+    """Set document password for read/write protection."""
+    try:
+        if not read_password and not write_password:
+            return "Error: At least one password is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        doc_features = hwp.get_document_features()
+        if doc_features.set_document_password(read_password, write_password):
+            logger.info("Successfully set document password")
+            return "Document password set successfully"
+        else:
+            return "Error: Failed to set document password"
+    except Exception as e:
+        logger.error(f"Error setting document password: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
 # ============== 고급 기능 도구들 ==============
 
 @mcp.tool()
@@ -1185,6 +1414,88 @@ def hwp_apply_template(template_path: str) -> str:
             return "Error: Failed to apply template"
     except Exception as e:
         logger.error(f"Error applying template: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_apply_table_style(style_name: str = "default") -> str:
+    """Apply a predefined style to the current table."""
+    try:
+        valid_styles = ["default", "simple", "professional", "colorful", "dark"]
+        if style_name not in valid_styles:
+            return f"Error: Invalid style. Choose from: {', '.join(valid_styles)}"
+        
+        # Get table tools instance
+        table_tools = get_hwp_table_tools()
+        if not table_tools:
+            return "Error: Failed to get table tools instance"
+        
+        # Use the imported function instead
+        from src.tools.hwp_table_tools import apply_table_style
+        return apply_table_style(style_name)
+    except Exception as e:
+        logger.error(f"Error applying table style: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_sort_table(column_index: int, ascending: bool = True) -> str:
+    """Sort table by specified column."""
+    try:
+        if column_index < 1:
+            return "Error: Column index must be 1 or greater"
+        
+        # Get table tools instance
+        table_tools = get_hwp_table_tools()
+        if not table_tools:
+            return "Error: Failed to get table tools instance"
+        
+        from src.tools.hwp_table_tools import sort_table_by_column
+        return sort_table_by_column(column_index, ascending)
+    except Exception as e:
+        logger.error(f"Error sorting table: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_merge_cells(
+    start_row: int,
+    start_col: int,
+    end_row: int,
+    end_col: int
+) -> str:
+    """Merge table cells in the specified range."""
+    try:
+        if start_row < 1 or start_col < 1 or end_row < 1 or end_col < 1:
+            return "Error: All cell positions must be 1 or greater"
+        
+        if start_row > end_row or start_col > end_col:
+            return "Error: Start position must be before end position"
+        
+        # Get table tools instance
+        table_tools = get_hwp_table_tools()
+        if not table_tools:
+            return "Error: Failed to get table tools instance"
+        
+        from src.tools.hwp_table_tools import merge_table_cells
+        return merge_table_cells(start_row, start_col, end_row, end_col)
+    except Exception as e:
+        logger.error(f"Error merging cells: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_split_cell(rows: int, cols: int) -> str:
+    """Split the current cell into specified rows and columns."""
+    try:
+        if rows < 1 or cols < 1:
+            return "Error: Rows and columns must be 1 or greater"
+        
+        # Get table tools instance
+        table_tools = get_hwp_table_tools()
+        if not table_tools:
+            return "Error: Failed to get table tools instance"
+        
+        from src.tools.hwp_table_tools import split_table_cell
+        return split_table_cell(rows, cols)
+    except Exception as e:
+        logger.error(f"Error splitting cell: {str(e)}", exc_info=True)
         return f"Error: {str(e)}"
 
 @mcp.tool()

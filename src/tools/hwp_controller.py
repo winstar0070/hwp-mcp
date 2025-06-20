@@ -9,6 +9,53 @@ import win32gui
 import win32con
 import time
 from typing import Optional, List, Dict, Any, Tuple
+try:
+    from .hwp_exceptions import (
+        HwpError, HwpConnectionError, HwpNotRunningError, HwpDocumentError,
+        HwpDocumentNotFoundError, HwpDocumentAccessError, HwpDocumentSaveError,
+        HwpTableError, HwpTableCellError, HwpTableRangeError, HwpTableNotFoundError,
+        HwpImageError, HwpImageNotFoundError, HwpImageFormatError,
+        HwpInvalidParameterError, HwpOperationError,
+        handle_hwp_error
+    )
+    from .constants import (
+        HWPUNIT_PER_PT, TABLE_MAX_ROWS, TABLE_MAX_COLS,
+        TABLE_DEFAULT_WIDTH, TABLE_DEFAULT_HEIGHT,
+        ALLOWED_IMAGE_FORMATS, IMAGE_EMBED_MODE,
+        SECURITY_MODULE_NAME, SECURITY_MODULE_DEFAULT_PATH
+    )
+    from .config import get_config
+except ImportError:
+    # 예외 클래스가 없는 경우 기본 Exception 사용
+    HwpError = Exception
+    HwpConnectionError = Exception
+    HwpNotRunningError = Exception
+    HwpDocumentError = Exception
+    HwpDocumentNotFoundError = Exception
+    HwpDocumentAccessError = Exception
+    HwpDocumentSaveError = Exception
+    HwpTableError = Exception
+    HwpTableCellError = Exception
+    HwpTableRangeError = Exception
+    HwpTableNotFoundError = Exception
+    HwpImageError = Exception
+    HwpImageNotFoundError = Exception
+    HwpImageFormatError = Exception
+    HwpInvalidParameterError = Exception
+    HwpOperationError = Exception
+    handle_hwp_error = lambda x: x
+    
+    # 상수 기본값
+    HWPUNIT_PER_PT = 100
+    TABLE_MAX_ROWS = 100
+    TABLE_MAX_COLS = 100
+    TABLE_DEFAULT_WIDTH = 8000
+    TABLE_DEFAULT_HEIGHT = 1000
+    ALLOWED_IMAGE_FORMATS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tif', '.tiff']
+    IMAGE_EMBED_MODE = 1
+    SECURITY_MODULE_NAME = "FilePathCheckerModuleExample"
+    SECURITY_MODULE_DEFAULT_PATH = "D:/hwp-mcp/security_module/FilePathCheckerModuleExample.dll"
+    get_config = lambda: None
 
 
 class HwpController:
@@ -39,8 +86,9 @@ class HwpController:
             if register_security_module:
                 try:
                     # 보안 모듈 DLL 경로 - 실제 파일이 위치한 경로로 수정 필요
-                    module_path = os.path.abspath("D:/hwp-mcp/security_module/FilePathCheckerModuleExample.dll")
-                    self.hwp.RegisterModule("FilePathCheckerModuleExample", module_path)
+                    config = get_config()
+                    module_path = os.path.abspath(config.security_module_path if config else SECURITY_MODULE_DEFAULT_PATH)
+                    self.hwp.RegisterModule(SECURITY_MODULE_NAME, module_path)
                     print("보안 모듈이 등록되었습니다.")
                 except Exception as e:
                     print(f"보안 모듈 등록 실패 (무시하고 계속 진행): {e}")
@@ -50,8 +98,7 @@ class HwpController:
             self.is_hwp_running = True
             return True
         except Exception as e:
-            print(f"한글 프로그램 연결 실패: {e}")
-            return False
+            raise HwpConnectionError(f"한글 프로그램 연결 실패: {e}")
 
     def disconnect(self) -> bool:
         """
@@ -101,15 +148,24 @@ class HwpController:
         """
         try:
             if not self.is_hwp_running:
-                self.connect()
+                raise HwpNotRunningError()
             
             abs_path = os.path.abspath(file_path)
-            self.hwp.Open(abs_path)
-            self.current_document_path = abs_path
-            return True
+            
+            # 파일 존재 확인
+            if not os.path.exists(abs_path):
+                raise HwpDocumentNotFoundError(abs_path)
+            
+            result = self.hwp.Open(abs_path)
+            if result:
+                self.current_document_path = abs_path
+                return True
+            else:
+                raise HwpDocumentAccessError(abs_path)
+        except (HwpConnectionError, HwpNotRunningError, HwpDocumentError):
+            raise
         except Exception as e:
-            print(f"문서 열기 실패: {e}")
-            return False
+            raise HwpDocumentError(f"문서 열기 오류: {e}")
 
     def save_document(self, file_path: Optional[str] = None) -> bool:
         """
@@ -123,25 +179,38 @@ class HwpController:
         """
         try:
             if not self.is_hwp_running:
-                return False
+                raise HwpNotRunningError()
             
             if file_path:
                 abs_path = os.path.abspath(file_path)
+                
+                # 디렉토리 존재 확인 및 생성
+                dir_path = os.path.dirname(abs_path)
+                if not os.path.exists(dir_path):
+                    os.makedirs(dir_path)
+                
                 # 파일 형식과 경로 모두 지정하여 저장
-                self.hwp.SaveAs(abs_path, "HWP", "")
-                self.current_document_path = abs_path
+                result = self.hwp.SaveAs(abs_path, "HWP", "")
+                if result:
+                    self.current_document_path = abs_path
+                    return True
+                else:
+                    raise HwpDocumentSaveError(abs_path)
             else:
                 if self.current_document_path:
-                    self.hwp.Save()
+                    result = self.hwp.Save()
+                    if not result:
+                        raise HwpDocumentSaveError(self.current_document_path)
                 else:
                     # 저장 대화 상자 표시 (파라미터 없이 호출)
                     self.hwp.SaveAs()
                     # 대화 상자에서 사용자가 선택한 경로를 알 수 없으므로 None 유지
             
             return True
+        except (HwpConnectionError, HwpNotRunningError, HwpDocumentError):
+            raise
         except Exception as e:
-            print(f"문서 저장 실패: {e}")
-            return False
+            raise HwpDocumentSaveError(file_path or "현재 문서", str(e))
 
     def insert_text(self, text: str, preserve_linebreaks: bool = True) -> bool:
         """
@@ -334,7 +403,14 @@ class HwpController:
         """
         try:
             if not self.is_hwp_running:
-                return False
+                raise HwpNotRunningError()
+            
+            # 매개변수 유효성 검사
+            if rows <= 0 or cols <= 0:
+                raise HwpInvalidParameterError("rows/cols", f"rows={rows}, cols={cols}", "1 이상의 정수")
+            
+            if rows > TABLE_MAX_ROWS or cols > TABLE_MAX_COLS:
+                raise HwpInvalidParameterError("rows/cols", f"rows={rows}, cols={cols}", f"{TABLE_MAX_ROWS} 이하의 정수")
             
             self.hwp.HAction.GetDefault("TableCreate", self.hwp.HParameterSet.HTableCreation.HSet)
             self.hwp.HParameterSet.HTableCreation.Rows = rows
@@ -342,20 +418,21 @@ class HwpController:
             self.hwp.HParameterSet.HTableCreation.WidthType = 0  # 0: 단에 맞춤, 1: 절대값
             self.hwp.HParameterSet.HTableCreation.HeightType = 1  # 0: 자동, 1: 절대값
             self.hwp.HParameterSet.HTableCreation.WidthValue = 0  # 단에 맞춤이므로 무시됨
-            self.hwp.HParameterSet.HTableCreation.HeightValue = 1000  # 셀 높이(hwpunit)
+            self.hwp.HParameterSet.HTableCreation.HeightValue = TABLE_DEFAULT_HEIGHT  # 셀 높이(hwpunit)
             
             # 각 열의 너비를 설정 (모두 동일하게)
             # PageWidth 대신 고정 값 사용
-            col_width = 8000 // cols  # 전체 너비를 열 수로 나눔
+            col_width = TABLE_DEFAULT_WIDTH // cols  # 전체 너비를 열 수로 나눔
             self.hwp.HParameterSet.HTableCreation.CreateItemArray("ColWidth", cols)
             for i in range(cols):
                 self.hwp.HParameterSet.HTableCreation.ColWidth.SetItem(i, col_width)
                 
             self.hwp.HAction.Execute("TableCreate", self.hwp.HParameterSet.HTableCreation.HSet)
             return True
+        except (HwpConnectionError, HwpNotRunningError, HwpInvalidParameterError):
+            raise
         except Exception as e:
-            print(f"표 삽입 실패: {e}")
-            return False
+            raise HwpTableError(f"표 삽입 실패: {e}")
 
     def insert_image(self, image_path: str, width: int = 0, height: int = 0) -> bool:
         """
@@ -371,23 +448,28 @@ class HwpController:
         """
         try:
             if not self.is_hwp_running:
-                return False
+                raise HwpNotRunningError()
             
             abs_path = os.path.abspath(image_path)
             if not os.path.exists(abs_path):
-                print(f"이미지 파일을 찾을 수 없습니다: {abs_path}")
-                return False
+                raise HwpImageNotFoundError(abs_path)
+            
+            # 허용된 이미지 형식 확인
+            ext = os.path.splitext(abs_path)[1].lower()
+            if ext not in ALLOWED_IMAGE_FORMATS:
+                raise HwpImageFormatError(ext)
                 
             self.hwp.HAction.GetDefault("InsertPicture", self.hwp.HParameterSet.HInsertPicture.HSet)
             self.hwp.HParameterSet.HInsertPicture.FileName = abs_path
             self.hwp.HParameterSet.HInsertPicture.Width = width
             self.hwp.HParameterSet.HInsertPicture.Height = height
-            self.hwp.HParameterSet.HInsertPicture.Embed = 1  # 0: 링크, 1: 파일 포함
+            self.hwp.HParameterSet.HInsertPicture.Embed = IMAGE_EMBED_MODE  # 0: 링크, 1: 파일 포함
             self.hwp.HAction.Execute("InsertPicture", self.hwp.HParameterSet.HInsertPicture.HSet)
             return True
+        except (HwpConnectionError, HwpNotRunningError, HwpImageError):
+            raise
         except Exception as e:
-            print(f"이미지 삽입 실패: {e}")
-            return False
+            raise HwpImageError(f"이미지 삽입 실패: {e}")
 
     def find_text(self, text: str) -> bool:
         """
@@ -715,9 +797,9 @@ class HwpController:
                     self.hwp.HParameterSet.HCharShape.FaceNameSymbol = font_name
                     self.hwp.HParameterSet.HCharShape.FaceNameUser = font_name
                 
-                # 글꼴 크기 설정 (hwpunit, 10pt = 1000)
+                # 글꼴 크기 설정 (hwpunit, 1pt = HWPUNIT_PER_PT)
                 if font_size:
-                    self.hwp.HParameterSet.HCharShape.Height = font_size * 100
+                    self.hwp.HParameterSet.HCharShape.Height = font_size * HWPUNIT_PER_PT
                 
                 # 스타일 설정
                 self.hwp.HParameterSet.HCharShape.Bold = 1 if bold else 0
@@ -782,3 +864,31 @@ class HwpController:
         """
         from .hwp_advanced_features import HwpAdvancedFeatures
         return HwpAdvancedFeatures(self)
+    
+    def get_document_features(self):
+        """
+        문서 편집 고급 기능 인스턴스를 반환합니다.
+        
+        Returns:
+            HwpDocumentFeatures: 문서 편집 고급 기능 인스턴스
+        """
+        from .hwp_document_features import HwpDocumentFeatures
+        return HwpDocumentFeatures(self)
+    
+    def is_connected(self) -> bool:
+        """
+        HWP와의 연결 상태를 확인합니다.
+        
+        Returns:
+            bool: 연결 상태
+        """
+        try:
+            if not self.is_hwp_running or not self.hwp:
+                return False
+            
+            # 간단한 명령 실행으로 연결 상태 확인
+            self.hwp.Version
+            return True
+        except:
+            self.is_hwp_running = False
+            return False

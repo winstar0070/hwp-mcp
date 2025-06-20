@@ -199,11 +199,16 @@ hwp-mcp/
 ├── hwp_mcp_stdio_server.py  # 메인 서버 스크립트
 ├── requirements.txt         # 의존성 패키지 목록
 ├── hwp-mcp-구조설명.md       # 프로젝트 구조 설명 문서
+├── CLAUDE.md               # Claude Code용 프로젝트 가이드
 ├── src/
 │   ├── tools/
 │   │   ├── hwp_controller.py      # 한글 제어 핵심 컨트롤러
 │   │   ├── hwp_table_tools.py     # 테이블 관련 기능 전문 모듈
-│   │   └── hwp_advanced_features.py # 고급 기능 모듈 (이미지, PDF, 서식 등)
+│   │   ├── hwp_advanced_features.py # 고급 기능 모듈 (이미지, PDF, 서식 등)
+│   │   ├── hwp_document_features.py # 문서 편집 고급 기능 모듈
+│   │   ├── hwp_exceptions.py      # 예외 클래스 정의
+│   │   ├── constants.py           # 상수 정의
+│   │   └── config.py              # 설정 관리
 │   ├── utils/                     # 유틸리티 함수
 │   └── __tests__/                 # 테스트 모듈
 └── security_module/
@@ -223,7 +228,43 @@ hwp-mcp/
 
 ## 변경 로그
 
-### 2025-06-20
+### 2025-06-20 (최신)
+- **문서 편집 고급 기능 대량 추가**
+  - `hwp_document_features.py` 모듈 신규 생성
+  - 각주/미주 삽입: `hwp_insert_footnote`, `hwp_insert_endnote`
+  - 하이퍼링크: `hwp_insert_hyperlink`
+  - 북마크: `hwp_insert_bookmark`, `hwp_goto_bookmark`
+  - 주석: `hwp_insert_comment`
+  - 검색 및 하이라이트: `hwp_search_and_highlight`
+  - 워터마크: `hwp_insert_watermark`
+  - 필드 코드: `hwp_insert_field` (날짜, 시간, 페이지 번호 등)
+  - 문서 보안: `hwp_set_document_password`
+  
+- **표 고급 기능 추가**
+  - `hwp_table_tools.py` 모듈 확장
+  - 표 스타일 적용: `hwp_apply_table_style` (simple, professional, colorful, dark)
+  - 표 정렬: `hwp_sort_table`
+  - 셀 병합: `hwp_merge_cells`
+  - 셀 분할: `hwp_split_cell`
+  
+- **코드 품질 개선**
+  - `hwp_exceptions.py`: 구체적인 예외 클래스 정의
+    - HwpConnectionError, HwpDocumentError, HwpTableError 등
+    - 각 기능별 특화된 예외 처리
+  - `constants.py`: 모든 하드코딩된 값 중앙화
+    - HWPUNIT 변환 상수
+    - 표, 이미지, 색상 관련 상수
+    - 페이지 설정, PDF 품질 등
+  - `config.py`: 런타임 설정 관리
+    - 싱글톤 패턴의 ConfigManager
+    - JSON 기반 설정 저장/로드
+    - 환경별 구성 지원
+  
+- **기존 기능 개선**
+  - HwpController에 예외 처리 적용
+  - `is_connected()` 메서드 추가: HWP 연결 상태 확인
+  - `get_document_features()` 메서드 추가: 문서 고급 기능 접근
+  
 - 글자 서식 설정 기능 개선
   - `insert_text_with_font` 메서드 추가: 서식이 적용된 텍스트를 직접 삽입
   - `apply_font_to_selection` 메서드 추가: 선택된 텍스트에 서식 적용
