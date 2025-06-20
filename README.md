@@ -63,7 +63,16 @@ hwp_create()
 
 #### 텍스트 삽입
 ```python
+# 일반 텍스트 삽입
 hwp_insert_text("원하는 텍스트를 입력하세요.")
+
+# 서식이 적용된 텍스트 삽입
+hwp_insert_text_with_font(
+    text="굵은 14pt 텍스트입니다.",
+    font_name="맑은 고딕",
+    font_size=14,
+    bold=True
+)
 ```
 
 #### 테이블 생성 및 데이터 입력
@@ -89,12 +98,28 @@ hwp_fill_column_numbers(start=1, end=10, column=1, from_first_cell=True)
 hwp_save("경로/문서명.hwp")
 ```
 
+#### 글자 서식 설정
+```python
+# 선택된 텍스트에 서식 적용
+hwp_apply_font_to_selection(
+    font_name="바탕",
+    font_size=12,
+    italic=True,
+    underline=True
+)
+
+# 다음에 입력할 텍스트의 서식 설정
+hwp_set_font(name="굴림", size=16, bold=True)
+```
+
 #### 일괄 작업 예시
 ```python
 hwp_batch_operations([
     {"operation": "hwp_create"},
-    {"operation": "hwp_insert_text", "params": {"text": "제목"}},
-    {"operation": "hwp_set_font", "params": {"size": 20, "bold": True}},
+    {"operation": "hwp_insert_text_with_font", 
+     "params": {"text": "제목", "font_size": 20, "bold": True}},
+    {"operation": "hwp_insert_paragraph"},
+    {"operation": "hwp_insert_text", "params": {"text": "본문 내용"}},
     {"operation": "hwp_save", "params": {"path": "경로/문서명.hwp"}}
 ])
 ```
@@ -128,6 +153,18 @@ hwp-mcp/
 테이블에 데이터를 입력할 때 커서 위치가 예상과 다르게 동작하는 경우가 있었으나, 현재 버전에서는 이 문제가 해결되었습니다. 테이블의 모든 셀에 정확하게 데이터가 입력됩니다.
 
 ## 변경 로그
+
+### 2025-04-20
+- 글자 서식 설정 기능 개선
+  - `insert_text_with_font` 메서드 추가: 서식이 적용된 텍스트를 직접 삽입
+  - `apply_font_to_selection` 메서드 추가: 선택된 텍스트에 서식 적용
+  - 기존 `set_font` 메서드의 스타일 설정 로직 개선 (명시적 1/0 값 사용)
+  - 글자 크기, 굵게, 기울임꼴, 밑줄 등 모든 서식이 정상 작동하도록 수정
+  - MCP 서버에 새로운 도구 추가: `hwp_insert_text_with_font`, `hwp_apply_font_to_selection`
+- 프로젝트 관리 개선
+  - CLAUDE.md 파일 추가 (Claude Code용 프로젝트 가이드)
+  - .gitignore에 CLAUDE.md 추가 (사용자별 설정 파일)
+  - 글자 서식 기능 테스트 코드 추가 (`test_font_features.py`)
 
 ### 2025-03-27
 - 표 생성 및 데이터 채우기 기능 개선

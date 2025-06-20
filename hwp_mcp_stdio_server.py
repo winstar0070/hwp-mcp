@@ -318,6 +318,69 @@ def hwp_get_text() -> str:
         return f"Error: {str(e)}"
 
 @mcp.tool()
+def hwp_insert_text_with_font(
+    text: str,
+    font_name: str = None,
+    font_size: int = None,
+    bold: bool = False,
+    italic: bool = False,
+    underline: bool = False
+) -> str:
+    """Insert text with specific font styling applied."""
+    try:
+        if not text:
+            return "Error: Text is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        if hwp.insert_text_with_font(
+            text=text,
+            font_name=font_name,
+            font_size=font_size,
+            bold=bold,
+            italic=italic,
+            underline=underline
+        ):
+            logger.info(f"Successfully inserted text with font styling")
+            return "Text inserted with font styling successfully"
+        else:
+            return "Error: Failed to insert text with font styling"
+    except Exception as e:
+        logger.error(f"Error inserting text with font: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_apply_font_to_selection(
+    font_name: str = None,
+    font_size: int = None,
+    bold: bool = False,
+    italic: bool = False,
+    underline: bool = False
+) -> str:
+    """Apply font styling to currently selected text."""
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        if hwp.apply_font_to_selection(
+            font_name=font_name,
+            font_size=font_size,
+            bold=bold,
+            italic=italic,
+            underline=underline
+        ):
+            logger.info("Successfully applied font to selection")
+            return "Font applied to selection successfully"
+        else:
+            return "Error: Failed to apply font to selection (no text selected?)"
+    except Exception as e:
+        logger.error(f"Error applying font to selection: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
 def hwp_close(save: bool = True) -> str:
     """Close the HWP document and connection."""
     try:

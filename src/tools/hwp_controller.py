@@ -289,9 +289,9 @@ class HwpController:
             if font_size:
                 self.hwp.HParameterSet.HCharShape.Height = font_size * 100
             
-            # 스타일 설정
-            self.hwp.HParameterSet.HCharShape.Bold = bold
-            self.hwp.HParameterSet.HCharShape.Italic = italic
+            # 스타일 설정 - 명시적으로 1/0 값 사용
+            self.hwp.HParameterSet.HCharShape.Bold = 1 if bold else 0
+            self.hwp.HParameterSet.HCharShape.Italic = 1 if italic else 0
             self.hwp.HParameterSet.HCharShape.UnderlineType = 1 if underline else 0
             
             # 변경사항 적용
@@ -677,4 +677,98 @@ class HwpController:
             
         except Exception as e:
             print(f"표 데이터 채우기 실패: {e}")
+            return False
+    
+    def insert_text_with_font(self, text: str, font_name: str = None, font_size: int = None, 
+                             bold: bool = False, italic: bool = False, underline: bool = False) -> bool:
+        """
+        서식이 적용된 텍스트를 삽입합니다.
+        먼저 서식을 설정한 후 텍스트를 입력하는 방식으로 작동합니다.
+        
+        Args:
+            text (str): 삽입할 텍스트
+            font_name (str, optional): 글꼴 이름
+            font_size (int, optional): 글꼴 크기 (포인트 단위)
+            bold (bool): 굵게 여부
+            italic (bool): 기울임꼴 여부
+            underline (bool): 밑줄 여부
+            
+        Returns:
+            bool: 성공 여부
+        """
+        try:
+            if not self.is_hwp_running:
+                return False
+            
+            # 1단계: 먼저 글자 서식을 설정
+            if font_name or font_size or bold or italic or underline:
+                # CharShape를 사용하여 다음에 입력될 텍스트의 서식 설정
+                self.hwp.HAction.GetDefault("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
+                
+                # 글꼴 이름 설정
+                if font_name:
+                    self.hwp.HParameterSet.HCharShape.FaceNameHangul = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameLatin = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameHanja = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameJapanese = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameOther = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameSymbol = font_name
+                    self.hwp.HParameterSet.HCharShape.FaceNameUser = font_name
+                
+                # 글꼴 크기 설정 (hwpunit, 10pt = 1000)
+                if font_size:
+                    self.hwp.HParameterSet.HCharShape.Height = font_size * 100
+                
+                # 스타일 설정
+                self.hwp.HParameterSet.HCharShape.Bold = 1 if bold else 0
+                self.hwp.HParameterSet.HCharShape.Italic = 1 if italic else 0
+                self.hwp.HParameterSet.HCharShape.UnderlineType = 1 if underline else 0
+                
+                # 서식 적용
+                self.hwp.HAction.Execute("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
+            
+            # 2단계: 텍스트 삽입
+            return self._insert_text_direct(text)
+            
+        except Exception as e:
+            print(f"서식이 적용된 텍스트 삽입 실패: {e}")
+            return False
+    
+    def apply_font_to_selection(self, font_name: str = None, font_size: int = None, 
+                               bold: bool = False, italic: bool = False, underline: bool = False) -> bool:
+        """
+        현재 선택된 텍스트에 서식을 적용합니다.
+        
+        Args:
+            font_name (str, optional): 글꼴 이름
+            font_size (int, optional): 글꼴 크기 (포인트 단위)
+            bold (bool): 굵게 여부
+            italic (bool): 기울임꼴 여부
+            underline (bool): 밑줄 여부
+            
+        Returns:
+            bool: 성공 여부
+        """
+        try:
+            if not self.is_hwp_running:
+                return False
+            
+            # 선택된 텍스트가 있는지 확인
+            selected_text = self.hwp.GetSelectedText()
+            if not selected_text:
+                print("선택된 텍스트가 없습니다.")
+                return False
+            
+            # set_font_style 메서드를 사용하여 서식 적용
+            return self.set_font_style(
+                font_name=font_name,
+                font_size=font_size,
+                bold=bold,
+                italic=italic,
+                underline=underline,
+                select_previous_text=False  # 이미 선택된 상태이므로 False
+            )
+            
+        except Exception as e:
+            print(f"선택된 텍스트에 서식 적용 실패: {e}")
             return False
