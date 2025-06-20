@@ -914,6 +914,279 @@ def hwp_create_document_from_text(content: str, title: str = None, format_conten
         logger.error(f"Error creating document from text: {str(e)}", exc_info=True)
         return {"status": "error", "message": f"Error: {str(e)}"}
 
+# ============== 고급 기능 도구들 ==============
+
+@mcp.tool()
+def hwp_insert_image(
+    image_path: str,
+    width: int = None,
+    height: int = None,
+    align: str = "left",
+    as_char: bool = True
+) -> str:
+    """Insert an image at the current cursor position."""
+    try:
+        if not image_path:
+            return "Error: Image path is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.insert_image(image_path, width, height, align, as_char):
+            logger.info(f"Successfully inserted image: {image_path}")
+            return f"Image inserted successfully: {image_path}"
+        else:
+            return "Error: Failed to insert image"
+    except Exception as e:
+        logger.error(f"Error inserting image: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_find_replace(
+    find_text: str,
+    replace_text: str = "",
+    match_case: bool = False,
+    whole_word: bool = False,
+    replace_all: bool = True
+) -> str:
+    """Find and replace text in the document."""
+    try:
+        if not find_text:
+            return "Error: Find text is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        advanced = hwp.get_advanced_features()
+        count = advanced.find_replace(find_text, replace_text, match_case, whole_word, replace_all)
+        
+        if replace_text:
+            return f"Replaced {count} occurrences of '{find_text}' with '{replace_text}'"
+        else:
+            return f"Found {count} occurrences of '{find_text}'"
+    except Exception as e:
+        logger.error(f"Error in find/replace: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_export_pdf(
+    output_path: str,
+    quality: str = "high",
+    include_bookmarks: bool = True,
+    include_comments: bool = False
+) -> str:
+    """Export the current document as PDF."""
+    try:
+        if not output_path:
+            return "Error: Output path is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.export_pdf(output_path, quality, include_bookmarks, include_comments):
+            logger.info(f"Successfully exported PDF: {output_path}")
+            return f"PDF exported successfully: {output_path}"
+        else:
+            return "Error: Failed to export PDF"
+    except Exception as e:
+        logger.error(f"Error exporting PDF: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_set_page(
+    paper_size: str = "A4",
+    orientation: str = "portrait",
+    top_margin: int = None,
+    bottom_margin: int = None,
+    left_margin: int = None,
+    right_margin: int = None
+) -> str:
+    """Set page properties for the document."""
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        margins = {}
+        if top_margin is not None:
+            margins["top"] = top_margin
+        if bottom_margin is not None:
+            margins["bottom"] = bottom_margin
+        if left_margin is not None:
+            margins["left"] = left_margin
+        if right_margin is not None:
+            margins["right"] = right_margin
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.set_page(paper_size, orientation, margins):
+            logger.info(f"Page settings updated: {paper_size} {orientation}")
+            return f"Page settings updated successfully"
+        else:
+            return "Error: Failed to update page settings"
+    except Exception as e:
+        logger.error(f"Error setting page: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_set_header_footer(
+    header_text: str = "",
+    footer_text: str = "",
+    show_page_number: bool = True,
+    page_number_position: str = "footer-center"
+) -> str:
+    """Set header and footer for the document."""
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.set_header_footer(header_text, footer_text, show_page_number, page_number_position):
+            logger.info("Header/footer settings updated")
+            return "Header/footer settings updated successfully"
+        else:
+            return "Error: Failed to update header/footer settings"
+    except Exception as e:
+        logger.error(f"Error setting header/footer: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_set_paragraph(
+    alignment: str = "left",
+    line_spacing: float = 1.0,
+    indent_first: int = 0,
+    indent_left: int = 0,
+    space_before: int = 0,
+    space_after: int = 0
+) -> str:
+    """Set paragraph formatting properties."""
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.set_paragraph(alignment, line_spacing, indent_first, indent_left, space_before, space_after):
+            logger.info("Paragraph formatting updated")
+            return "Paragraph formatting updated successfully"
+        else:
+            return "Error: Failed to update paragraph formatting"
+    except Exception as e:
+        logger.error(f"Error setting paragraph: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_create_toc(
+    max_level: int = 3,
+    page_numbers: bool = True,
+    update_existing: bool = True
+) -> str:
+    """Create or update table of contents."""
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.create_toc(max_level, page_numbers, update_existing):
+            logger.info("Table of contents created/updated")
+            return "Table of contents created successfully"
+        else:
+            return "Error: Failed to create table of contents"
+    except Exception as e:
+        logger.error(f"Error creating TOC: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_shape(
+    shape_type: str = "rectangle",
+    x: int = None,
+    y: int = None,
+    width: int = None,
+    height: int = None,
+    fill_color: str = "#FFFFFF",
+    border_color: str = "#000000",
+    text: str = ""
+) -> str:
+    """Insert a shape at the specified position."""
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        position = {}
+        if x is not None:
+            position["x"] = x
+        if y is not None:
+            position["y"] = y
+        
+        size = {}
+        if width is not None:
+            size["width"] = width
+        if height is not None:
+            size["height"] = height
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.insert_shape(shape_type, position, size, fill_color, border_color, text):
+            logger.info(f"Shape inserted: {shape_type}")
+            return f"{shape_type} shape inserted successfully"
+        else:
+            return "Error: Failed to insert shape"
+    except Exception as e:
+        logger.error(f"Error inserting shape: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_save_as_template(
+    template_name: str,
+    template_path: str = None,
+    include_styles: bool = True
+) -> str:
+    """Save current document as a template."""
+    try:
+        if not template_name:
+            return "Error: Template name is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.save_as_template(template_name, template_path, include_styles):
+            logger.info(f"Template saved: {template_name}")
+            return f"Template saved successfully: {template_name}"
+        else:
+            return "Error: Failed to save template"
+    except Exception as e:
+        logger.error(f"Error saving template: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_apply_template(template_path: str) -> str:
+    """Apply a template to the current document."""
+    try:
+        if not template_path:
+            return "Error: Template path is required"
+        
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        advanced = hwp.get_advanced_features()
+        if advanced.apply_template(template_path):
+            logger.info(f"Template applied: {template_path}")
+            return f"Template applied successfully: {template_path}"
+        else:
+            return "Error: Failed to apply template"
+    except Exception as e:
+        logger.error(f"Error applying template: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
 @mcp.tool()
 def hwp_batch_operations(operations: list) -> dict:
     """

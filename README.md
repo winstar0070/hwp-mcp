@@ -112,15 +112,83 @@ hwp_apply_font_to_selection(
 hwp_set_font(name="굴림", size=16, bold=True)
 ```
 
+#### 이미지 삽입
+```python
+# 이미지 삽입
+hwp_insert_image(
+    image_path="이미지.jpg",
+    width=100,  # mm 단위
+    height=75,
+    align="center"
+)
+```
+
+#### 찾기/바꾸기
+```python
+# 텍스트 찾기/바꾸기
+hwp_find_replace(
+    find_text="찾을텍스트",
+    replace_text="바꿀텍스트",
+    match_case=False,
+    replace_all=True
+)
+```
+
+#### PDF 변환
+```python
+# 현재 문서를 PDF로 변환
+hwp_export_pdf(
+    output_path="문서.pdf",
+    quality="high"
+)
+```
+
+#### 페이지 설정
+```python
+# 페이지 크기, 방향, 여백 설정
+hwp_set_page(
+    paper_size="A4",
+    orientation="portrait",
+    top_margin=20,
+    bottom_margin=20,
+    left_margin=30,
+    right_margin=30
+)
+```
+
+#### 머리말/꼬리말 설정
+```python
+# 머리말과 꼬리말 설정
+hwp_set_header_footer(
+    header_text="문서 제목",
+    footer_text="페이지 ",
+    show_page_number=True,
+    page_number_position="footer-center"
+)
+```
+
+#### 문단 서식
+```python
+# 문단 서식 설정
+hwp_set_paragraph(
+    alignment="justify",  # left, center, right, justify
+    line_spacing=1.5,
+    indent_first=10,
+    space_after=5
+)
+```
+
 #### 일괄 작업 예시
 ```python
 hwp_batch_operations([
     {"operation": "hwp_create"},
+    {"operation": "hwp_set_page", "params": {"paper_size": "A4"}},
     {"operation": "hwp_insert_text_with_font", 
      "params": {"text": "제목", "font_size": 20, "bold": True}},
     {"operation": "hwp_insert_paragraph"},
     {"operation": "hwp_insert_text", "params": {"text": "본문 내용"}},
-    {"operation": "hwp_save", "params": {"path": "경로/문서명.hwp"}}
+    {"operation": "hwp_export_pdf", "params": {"output_path": "문서.pdf"}},
+    {"operation": "hwp_save", "params": {"path": "문서.hwp"}}
 ])
 ```
 
@@ -133,10 +201,11 @@ hwp-mcp/
 ├── hwp-mcp-구조설명.md       # 프로젝트 구조 설명 문서
 ├── src/
 │   ├── tools/
-│   │   ├── hwp_controller.py  # 한글 제어 핵심 컨트롤러
-│   │   └── hwp_table_tools.py # 테이블 관련 기능 전문 모듈
-│   ├── utils/                 # 유틸리티 함수
-│   └── __tests__/             # 테스트 모듈
+│   │   ├── hwp_controller.py      # 한글 제어 핵심 컨트롤러
+│   │   ├── hwp_table_tools.py     # 테이블 관련 기능 전문 모듈
+│   │   └── hwp_advanced_features.py # 고급 기능 모듈 (이미지, PDF, 서식 등)
+│   ├── utils/                     # 유틸리티 함수
+│   └── __tests__/                 # 테스트 모듈
 └── security_module/
     └── FilePathCheckerModuleExample.dll  # 보안 모듈
 ```
@@ -161,10 +230,25 @@ hwp-mcp/
   - 기존 `set_font` 메서드의 스타일 설정 로직 개선 (명시적 1/0 값 사용)
   - 글자 크기, 굵게, 기울임꼴, 밑줄 등 모든 서식이 정상 작동하도록 수정
   - MCP 서버에 새로운 도구 추가: `hwp_insert_text_with_font`, `hwp_apply_font_to_selection`
+- 고급 기능 대량 추가
+  - **1단계 - 즉시 유용한 기능들**
+    - `hwp_insert_image`: 이미지 삽입 (크기 조절, 정렬 옵션 포함)
+    - `hwp_find_replace`: 찾기/바꾸기 (대소문자 구분, 전체 단어 일치 옵션)
+    - `hwp_export_pdf`: PDF 변환 (품질 설정 가능)
+  - **2단계 - 문서 품질 향상 기능들**
+    - `hwp_set_page`: 페이지 설정 (용지 크기, 방향, 여백)
+    - `hwp_set_header_footer`: 머리말/꼬리말 설정 (페이지 번호 포함)
+    - `hwp_set_paragraph`: 문단 서식 (정렬, 줄 간격, 들여쓰기)
+  - **3단계 - 고급 기능들**
+    - `hwp_create_toc`: 목차 자동 생성
+    - `hwp_insert_shape`: 도형 삽입 (사각형, 원, 화살표 등)
+    - `hwp_save_as_template`: 템플릿 저장
+    - `hwp_apply_template`: 템플릿 적용
+  - 새로운 모듈 추가: `hwp_advanced_features.py`
 - 프로젝트 관리 개선
   - CLAUDE.md 파일 추가 (Claude Code용 프로젝트 가이드)
   - .gitignore에 CLAUDE.md 추가 (사용자별 설정 파일)
-  - 글자 서식 기능 테스트 코드 추가 (`test_font_features.py`)
+  - 테스트 코드 추가: `test_font_features.py`, `test_advanced_features.py`
 
 ### 2025-03-27
 - 표 생성 및 데이터 채우기 기능 개선

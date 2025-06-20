@@ -772,3 +772,13 @@ class HwpController:
         except Exception as e:
             print(f"선택된 텍스트에 서식 적용 실패: {e}")
             return False
+    
+    def get_advanced_features(self):
+        """
+        고급 기능 인스턴스를 반환합니다.
+        
+        Returns:
+            HwpAdvancedFeatures: 고급 기능 인스턴스
+        """
+        from .hwp_advanced_features import HwpAdvancedFeatures
+        return HwpAdvancedFeatures(self)
