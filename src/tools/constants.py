@@ -165,3 +165,11 @@ BATCH_OPERATION_TIMEOUT = 300  # 배치 작업 타임아웃 (초)
 BATCH_CHUNK_SIZE = 100     # 배치 작업 청크 크기
 MAX_RETRY_COUNT = 3        # 최대 재시도 횟수
 RETRY_DELAY = 1            # 재시도 지연 시간 (초)
+
+# ============== 템플릿 관련 상수 ==============
+TEMPLATE_DIR = "HWP_Templates"  # 템플릿 디렉토리 이름
+TEMP_DOCUMENT_NAME = "temp_document.hwp"  # 임시 문서 파일명
+
+# ============== 특수 문자열 상수 ==============
+NUMBER_SEQUENCE_KOREAN = "1부터 10까지"  # 숫자 시퀀스 한국어 표현
+VERTICAL_KOREAN = "세로"  # 세로 방향 한국어

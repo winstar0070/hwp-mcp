@@ -6,6 +6,27 @@ import os
 import logging
 from typing import Optional, Dict, List, Tuple
 
+try:
+    from .constants import (
+        HWPUNIT_PER_MM, HWPUNIT_PER_CM, HWPUNIT_PER_PT,
+        PDF_QUALITY, PAPER_SIZES, PAGE_ORIENTATION,
+        DEFAULT_MARGINS, TEXT_ALIGNMENT, SHAPE_TYPES
+    )
+except ImportError:
+    # 상수가 없는 경우 기본값 사용
+    HWPUNIT_PER_MM = 2834.64
+    HWPUNIT_PER_CM = 28346.4
+    HWPUNIT_PER_PT = 100
+    PDF_QUALITY = {"low": 0, "medium": 1, "high": 2, "print": 3}
+    PAPER_SIZES = {
+        "A4": {"width": 59528, "height": 84188},
+        "Letter": {"width": 61199, "height": 79370}
+    }
+    PAGE_ORIENTATION = {"portrait": 0, "landscape": 1}
+    DEFAULT_MARGINS = {"top": 20, "bottom": 20, "left": 30, "right": 30}
+    TEXT_ALIGNMENT = {"left": 0, "center": 1, "right": 2, "justify": 3}
+    SHAPE_TYPES = {"rectangle": 0, "ellipse": 1, "line": 2}
+
 logger = logging.getLogger(__name__)
 
 class HwpAdvancedFeatures:
@@ -59,18 +80,18 @@ class HwpAdvancedFeatures:
                 # 비율 유지하며 크기 조정
                 if width and not height:
                     # 너비만 지정된 경우
-                    ratio = width * 2834.64 / current_width  # mm to HWPUNIT (1mm = 2834.64)
-                    new_width = width * 2834.64
+                    ratio = width * HWPUNIT_PER_MM / current_width  # mm to HWPUNIT
+                    new_width = width * HWPUNIT_PER_MM
                     new_height = current_height * ratio
                 elif height and not width:
                     # 높이만 지정된 경우
-                    ratio = height * 2834.64 / current_height
+                    ratio = height * HWPUNIT_PER_MM / current_height
                     new_width = current_width * ratio
-                    new_height = height * 2834.64
+                    new_height = height * HWPUNIT_PER_MM
                 else:
                     # 둘 다 지정된 경우
-                    new_width = width * 2834.64
-                    new_height = height * 2834.64
+                    new_width = width * HWPUNIT_PER_MM
+                    new_height = height * HWPUNIT_PER_MM
                 
                 # 크기 적용
                 ctrl.Width = int(new_width)
@@ -78,14 +99,9 @@ class HwpAdvancedFeatures:
             
             # 정렬 설정
             if align and not as_char:
-                align_map = {
-                    "left": 0,
-                    "center": 1,
-                    "right": 2
-                }
-                if align in align_map:
+                if align in TEXT_ALIGNMENT:
                     self.hwp.Run("ParagraphShapeAlignDistribute")
-                    self.hwp.HParameterSet.HParaShape.Alignment = align_map[align]
+                    self.hwp.HParameterSet.HParaShape.Alignment = TEXT_ALIGNMENT[align]
                     self.hwp.HAction.Execute("ParagraphShape", self.hwp.HParameterSet.HParaShape.HSet)
             
             logger.info(f"이미지 삽입 성공: {image_path}")
@@ -165,12 +181,8 @@ class HwpAdvancedFeatures:
             bool: 성공 여부
         """
         try:
-            # PDF 저장 설정
-            quality_map = {
-                "low": "75",
-                "medium": "150",
-                "high": "300"
-            }
+            # PDF 저장 설정 - 현재 HWP API는 PDF 품질 설정을 직접 지원하지 않음
+            # quality 매개변수는 향후 API 업데이트를 위해 유지
             
             # 출력 경로 확인
             output_dir = os.path.dirname(output_path)
@@ -211,34 +223,29 @@ class HwpAdvancedFeatures:
             # 페이지 설정 액션 가져오기
             self.hwp.HAction.GetDefault("PageSetup", self.hwp.HParameterSet.HSecDef.HSet)
             
-            # 용지 크기 설정
-            paper_sizes = {
-                "A4": (21000, 29700),  # 210mm x 297mm in 0.01mm units
-                "A3": (29700, 42000),
-                "B5": (18200, 25700),
-                "Letter": (21590, 27940),
-                "Legal": (21590, 35560)
-            }
+            # 용지 크기 설정 - constants.py의 PAPER_SIZES를 사용하도록 변환
+            # PAPER_SIZES는 HWPUNIT 단위로 저장되어 있음
             
-            if paper_size in paper_sizes:
-                width, height = paper_sizes[paper_size]
+            if paper_size in PAPER_SIZES:
+                width = PAPER_SIZES[paper_size]["width"]
+                height = PAPER_SIZES[paper_size]["height"]
                 if orientation == "landscape":
                     width, height = height, width
                 
-                self.hwp.HParameterSet.HSecDef.PageDef.PaperWidth = width * 100  # HWPUNIT로 변환
-                self.hwp.HParameterSet.HSecDef.PageDef.PaperHeight = height * 100
-                self.hwp.HParameterSet.HSecDef.PageDef.Landscape = 1 if orientation == "landscape" else 0
+                self.hwp.HParameterSet.HSecDef.PageDef.PaperWidth = width  # 이미 HWPUNIT
+                self.hwp.HParameterSet.HSecDef.PageDef.PaperHeight = height
+                self.hwp.HParameterSet.HSecDef.PageDef.Landscape = PAGE_ORIENTATION.get(orientation, 0)
             
             # 여백 설정
             if margins:
                 if "top" in margins:
-                    self.hwp.HParameterSet.HSecDef.PageDef.TopMargin = margins["top"] * 2834.64
+                    self.hwp.HParameterSet.HSecDef.PageDef.TopMargin = margins["top"] * HWPUNIT_PER_MM
                 if "bottom" in margins:
-                    self.hwp.HParameterSet.HSecDef.PageDef.BottomMargin = margins["bottom"] * 2834.64
+                    self.hwp.HParameterSet.HSecDef.PageDef.BottomMargin = margins["bottom"] * HWPUNIT_PER_MM
                 if "left" in margins:
-                    self.hwp.HParameterSet.HSecDef.PageDef.LeftMargin = margins["left"] * 2834.64
+                    self.hwp.HParameterSet.HSecDef.PageDef.LeftMargin = margins["left"] * HWPUNIT_PER_MM
                 if "right" in margins:
-                    self.hwp.HParameterSet.HSecDef.PageDef.RightMargin = margins["right"] * 2834.64
+                    self.hwp.HParameterSet.HSecDef.PageDef.RightMargin = margins["right"] * HWPUNIT_PER_MM
             
             # 설정 적용
             self.hwp.HAction.Execute("PageSetup", self.hwp.HParameterSet.HSecDef.HSet)

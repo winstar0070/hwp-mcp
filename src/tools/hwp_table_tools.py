@@ -8,6 +8,10 @@ import logging
 import os
 import time
 from typing import List, Dict, Any, Optional
+from .hwp_utils import (
+    parse_table_data as parse_table_data_util,
+    log_operation_result, safe_hwp_operation
+)
 
 # Configure logging
 logger = logging.getLogger("hwp-table-tools")
@@ -301,8 +305,8 @@ class HwpTableTools:
             hwp.HParameterSet.HCellBorderFill.BorderType = border_type
             hwp.HParameterSet.HCellBorderFill.BorderWidth = int(width * 10)
             hwp.HAction.Execute("CellBorder", hwp.HParameterSet.HCellBorderFill.HSet)
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"테이블 테두리 스타일 설정 실패: {str(e)}")
     
     def _set_table_background_color(self, header_color=None, header_text_color=None, 
                                   body_color=None, body_text_color=None):
@@ -318,16 +322,17 @@ class HwpTableTools:
                 # 색상 변환 및 적용 (HWP API 제한으로 단순화)
                 hwp.HAction.Execute("CellFill", hwp.HParameterSet.HCellBorderFill.HSet)
                 hwp.Run("Cancel")
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"테이블 배경색 설정 실패: {str(e)}")
     
     def _set_table_alternating_rows(self, color1: str, color2: str):
         """교대로 행 색상 적용"""
         try:
-            # 구현 단순화 - HWP API 제한
-            pass
-        except:
-            pass
+            # 구현 단순화 - HWP API 제한으로 인해 현재는 구현하지 않음
+            # 향후 HWP API가 지원하면 구현 예정
+            logger.debug(f"교대 행 색상 적용 기능은 현재 지원되지 않습니다. 요청된 색상: {color1}, {color2}")
+        except Exception as e:
+            logger.warning(f"교대 행 색상 적용 실패: {str(e)}")
     
     def _sort_table(self, column_index: int, ascending: bool = True) -> str:
         """
@@ -430,19 +435,8 @@ class HwpTableTools:
     
     def _move_to_cell(self, row: int, col: int):
         """특정 셀로 이동하는 내부 헬퍼 메서드"""
-        hwp = self.hwp_controller.hwp
-        
-        # 첫 번째 셀로 이동
-        hwp.Run("TableColBegin")
-        hwp.Run("TableRowBegin")
-        
-        # 목표 행으로 이동
-        for _ in range(row - 1):
-            hwp.Run("TableLowerCell")
-        
-        # 목표 열로 이동
-        for _ in range(col - 1):
-            hwp.Run("TableRightCell")
+        from .hwp_utils import move_to_table_cell
+        move_to_table_cell(self.hwp_controller.hwp, row, col)
 
 # 유틸리티 함수 - 문자열 데이터를 2차원 배열로 변환
 def parse_table_data(data_str: str) -> List[List[str]]:
@@ -455,27 +449,7 @@ def parse_table_data(data_str: str) -> List[List[str]]:
     Returns:
         List[List[str]]: 2차원 데이터 리스트
     """
-    try:
-        data = json.loads(data_str)
-        
-        # 데이터 구조 유효성 검사
-        if not isinstance(data, list):
-            logger.error(f"데이터가 리스트 형식이 아님: {type(data)}")
-            return []
-        
-        # 모든 행이 리스트인지 확인하고 문자열로 변환
-        result = []
-        for row in data:
-            if isinstance(row, list):
-                result.append([str(cell) if cell is not None else "" for cell in row])
-            else:
-                # 리스트가 아닌 행은 단일 항목 리스트로 처리
-                result.append([str(row)])
-        
-        return result
-    except json.JSONDecodeError as e:
-        logger.error(f"표 데이터 파싱 오류: {str(e)}")
-        return []
+    return parse_table_data_util(data_str)
 
 def apply_table_style(style_name: str = "default") -> str:
     """
@@ -560,4 +534,17 @@ def split_table_cell(rows: int, cols: int) -> str:
         return table_tools._split_cell(rows, cols)
     except Exception as e:
         logger.error(f"Error splitting cell: {str(e)}", exc_info=True)
-        return f"Error: {str(e)}" 
+        return f"Error: {str(e)}"
+
+# get_hwp_table_tools 함수 추가
+def get_hwp_table_tools():
+    """
+    전역 HwpTableTools 인스턴스를 가져옵니다.
+    
+    Returns:
+        HwpTableTools: 테이블 도구 인스턴스
+    """
+    from hwp_mcp_stdio_server import hwp_controller
+    if hwp_controller:
+        return HwpTableTools(hwp_controller)
+    return None

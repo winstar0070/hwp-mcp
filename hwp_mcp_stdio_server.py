@@ -72,6 +72,21 @@ except ImportError as e:
         print(f"Error: Could not find HwpTableTools module", file=sys.stderr)
         sys.exit(1)
 
+# Try to import constants
+try:
+    from src.tools.constants import (
+        TEMP_DOCUMENT_NAME, TEMPLATE_DIR,
+        NUMBER_SEQUENCE_KOREAN, VERTICAL_KOREAN
+    )
+    logger.info("Constants imported successfully")
+except ImportError:
+    # 상수가 없는 경우 기본값 사용
+    TEMP_DOCUMENT_NAME = "temp_document.hwp"
+    TEMPLATE_DIR = "HWP_Templates"
+    NUMBER_SEQUENCE_KOREAN = "1부터 10까지"
+    VERTICAL_KOREAN = "세로"
+    logger.warning("Failed to import constants, using defaults")
+
 # Initialize FastMCP server
 mcp = FastMCP(
     "hwp-mcp",
@@ -167,7 +182,7 @@ def hwp_save(path: str = None) -> str:
             else:
                 return "Error: Failed to save document"
         else:
-            temp_path = os.path.join(os.getcwd(), "temp_document.hwp")
+            temp_path = os.path.join(os.getcwd(), TEMP_DOCUMENT_NAME)
             if hwp.save_document(temp_path):
                 logger.info(f"Successfully saved document to temporary location: {temp_path}")
                 return f"Document saved to: {temp_path}"
@@ -1550,7 +1565,7 @@ def hwp_batch_operations(operations: list) -> dict:
                     if path and hwp.save_document(path):
                         result["message"] = f"Document saved to: {path}"
                     elif not path:
-                        temp_path = os.path.join(os.getcwd(), "temp_document.hwp")
+                        temp_path = os.path.join(os.getcwd(), TEMP_DOCUMENT_NAME)
                         if hwp.save_document(temp_path):
                             result["message"] = f"Document saved to: {temp_path}"
                             result["path"] = temp_path
@@ -1790,7 +1805,7 @@ def hwp_fill_table_with_data(data, start_row: int = 1, start_col: int = 1, has_h
                     logger.error(f"JSON 디코딩 오류: {str(e)}")
                     
                     # 특수 케이스: 1부터 10까지 세로로 채우는 요청인 경우
-                    if "1부터 10까지" in data and "세로" in data:
+                    if NUMBER_SEQUENCE_KOREAN in data and VERTICAL_KOREAN in data:
                         logger.info("특수 케이스 감지: 1부터 10까지 세로로 채우기")
                         processed_data = []
                         for i in range(1, 11):

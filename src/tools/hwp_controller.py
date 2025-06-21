@@ -25,6 +25,11 @@ try:
         SECURITY_MODULE_NAME, SECURITY_MODULE_DEFAULT_PATH
     )
     from .config import get_config
+    from .hwp_utils import (
+        require_hwp_connection, safe_hwp_operation,
+        set_font_properties, move_to_table_cell,
+        validate_table_coordinates, log_operation_result
+    )
 except ImportError:
     # 예외 클래스가 없는 경우 기본 Exception 사용
     HwpError = Exception
@@ -48,6 +53,22 @@ except ImportError:
     # 상수 기본값
     HWPUNIT_PER_PT = 100
     TABLE_MAX_ROWS = 100
+    
+    # 유틸 함수 더미
+    def require_hwp_connection(func):
+        return func
+    def safe_hwp_operation(name, default=None):
+        def decorator(func):
+            return func
+        return decorator
+    def set_font_properties(*args, **kwargs):
+        return False
+    def move_to_table_cell(*args, **kwargs):
+        return False
+    def validate_table_coordinates(*args, **kwargs):
+        pass
+    def log_operation_result(*args, **kwargs):
+        pass
     TABLE_MAX_COLS = 100
     TABLE_DEFAULT_WIDTH = 8000
     TABLE_DEFAULT_HEIGHT = 1000
