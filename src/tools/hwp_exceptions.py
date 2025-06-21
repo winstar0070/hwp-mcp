@@ -149,6 +149,23 @@ class HwpOperationNotAllowedError(HwpOperationError):
             msg += f" ({reason})"
         super().__init__(msg)
 
+class HwpBatchError(HwpError):
+    """배치 작업 관련 예외의 기본 클래스"""
+    pass
+
+class HwpTransactionError(HwpBatchError):
+    """트랜잭션 처리 중 발생하는 예외"""
+    def __init__(self, transaction_id: str, message: str = ""):
+        self.transaction_id = transaction_id
+        super().__init__(f"트랜잭션 {transaction_id} 오류: {message}")
+
+class HwpChunkProcessingError(HwpBatchError):
+    """청크 단위 처리 중 발생하는 예외"""
+    def __init__(self, chunk_index: int, total_chunks: int, message: str = ""):
+        self.chunk_index = chunk_index
+        self.total_chunks = total_chunks
+        super().__init__(f"청크 {chunk_index}/{total_chunks} 처리 오류: {message}")
+
 class HwpTimeoutError(HwpError):
     """작업 시간 초과"""
     def __init__(self, operation, timeout):

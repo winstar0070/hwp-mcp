@@ -1920,6 +1920,163 @@ def hwp_fill_column_numbers(start: int = 1, end: int = 10, column: int = 1, from
         logger.error(f"테이블 숫자 채우기 오류: {str(e)}", exc_info=True)
         return f"Error: {str(e)}"
 
+# ============== 차트/그래프 기능 ==============
+
+@mcp.tool()
+def hwp_insert_chart(
+    chart_type: str = "column",
+    data: str = None,
+    title: str = "",
+    width: int = None,
+    height: int = None
+) -> str:
+    """
+    Insert a chart into the document.
+    
+    Args:
+        chart_type: Chart type (column, bar, line, pie, area, scatter, doughnut)
+        data: Chart data as JSON string (2D array)
+        title: Chart title
+        width: Chart width in mm
+        height: Chart height in mm
+    """
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        # 차트 기능 가져오기
+        from src.tools.hwp_chart_features import HwpChartFeatures
+        chart_features = HwpChartFeatures(hwp)
+        
+        # 데이터 파싱
+        chart_data = None
+        if data:
+            try:
+                import json
+                chart_data = json.loads(data)
+            except json.JSONDecodeError:
+                return "Error: Invalid JSON data format"
+        
+        if chart_features.insert_chart(chart_type, chart_data, title, width, height):
+            return f"Chart inserted successfully: {chart_type}"
+        else:
+            return "Error: Failed to insert chart"
+    except Exception as e:
+        logger.error(f"Error inserting chart: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_equation(
+    equation_text: str = "",
+    template_type: str = None
+) -> str:
+    """
+    Insert a mathematical equation.
+    
+    Args:
+        equation_text: Equation text (limited LaTeX support)
+        template_type: Template type (fraction, sqrt, sum, integral, matrix, quadratic)
+    """
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        from src.tools.hwp_chart_features import HwpChartFeatures
+        chart_features = HwpChartFeatures(hwp)
+        
+        if template_type:
+            if chart_features.insert_equation_template(template_type):
+                return f"Equation template inserted: {template_type}"
+            else:
+                return "Error: Failed to insert equation template"
+        else:
+            if chart_features.insert_equation(equation_text):
+                return "Equation inserted successfully"
+            else:
+                return "Error: Failed to insert equation"
+    except Exception as e:
+        logger.error(f"Error inserting equation: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+# ============== 배치 작업 기능 ==============
+
+@mcp.tool()
+def hwp_batch_operations(
+    operations: str,
+    use_transaction: bool = True,
+    stop_on_error: bool = True
+) -> str:
+    """
+    Execute batch operations with optional transaction support.
+    
+    Args:
+        operations: JSON string of operations list
+        use_transaction: Whether to use transaction (rollback on error)
+        stop_on_error: Whether to stop on first error
+    """
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        # 작업 목록 파싱
+        try:
+            import json
+            ops_list = json.loads(operations)
+        except json.JSONDecodeError:
+            return "Error: Invalid JSON operations format"
+        
+        from src.tools.hwp_batch_processor import HwpBatchProcessor
+        batch_processor = HwpBatchProcessor(hwp)
+        
+        result = batch_processor.execute_batch(ops_list, use_transaction, stop_on_error)
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Error in batch operations: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
+@mcp.tool()
+def hwp_insert_large_table_data(
+    data: str,
+    chunk_size: int = None
+) -> str:
+    """
+    Insert large table data in chunks for better performance.
+    
+    Args:
+        data: Table data as JSON string (2D array)
+        chunk_size: Number of rows to process at once
+    """
+    try:
+        hwp = get_hwp_controller()
+        if not hwp:
+            return "Error: Failed to connect to HWP program"
+        
+        # 데이터 파싱
+        try:
+            import json
+            table_data = json.loads(data)
+        except json.JSONDecodeError:
+            return "Error: Invalid JSON data format"
+        
+        from src.tools.hwp_batch_processor import HwpBatchProcessor
+        batch_processor = HwpBatchProcessor(hwp)
+        
+        # 진행률 콜백
+        def progress_callback(progress, current, total):
+            logger.info(f"Progress: {progress:.1f}% ({current}/{total} rows)")
+        
+        if batch_processor.insert_large_table_data(table_data, chunk_size, progress_callback):
+            return f"Large table data inserted successfully: {len(table_data)} rows"
+        else:
+            return "Error: Failed to insert large table data"
+    except Exception as e:
+        logger.error(f"Error inserting large table data: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}"
+
 if __name__ == "__main__":
     logger.info("Starting HWP MCP stdio server")
     try:

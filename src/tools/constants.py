@@ -173,3 +173,34 @@ TEMP_DOCUMENT_NAME = "temp_document.hwp"  # 임시 문서 파일명
 # ============== 특수 문자열 상수 ==============
 NUMBER_SEQUENCE_KOREAN = "1부터 10까지"  # 숫자 시퀀스 한국어 표현
 VERTICAL_KOREAN = "세로"  # 세로 방향 한국어
+
+# ============== 차트 관련 상수 ==============
+CHART_TYPES = {
+    "column": 0,      # 세로 막대
+    "bar": 1,         # 가로 막대
+    "line": 2,        # 꺾은선
+    "pie": 3,         # 원형
+    "area": 4,        # 영역
+    "scatter": 5,     # 분산형
+    "doughnut": 6,    # 도넛
+    "radar": 7,       # 방사형
+    "bubble": 8       # 거품형
+}
+
+CHART_DEFAULT_SIZE = {
+    "width": 120,     # mm 단위
+    "height": 80      # mm 단위
+}
+
+# ============== 수식 관련 상수 ==============
+EQUATION_TEMPLATES = {
+    "fraction": "a over b",
+    "sqrt": "sqrt {x}",
+    "sum": "sum from {i=1} to {n} x_i",
+    "integral": "int from {a} to {b} f(x) dx",
+    "matrix": "left [ matrix { a # b ## c # d } right ]",
+    "quadratic": "x = {-b +- sqrt {b^2 - 4ac}} over {2a}",
+    "limit": "lim from {x -> 0} f(x)",
+    "derivative": "{df} over {dx}",
+    "partial": "{partial f} over {partial x}"
+}
