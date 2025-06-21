@@ -103,26 +103,40 @@ class HwpController:
         Returns:
             bool: 연결 성공 여부
         """
+        # HWP 객체 생성
         try:
             self.hwp = win32com.client.Dispatch("HWPFrame.HwpObject")
-            
-            # 보안 모듈 등록 (파일 경로 체크 보안 경고창 방지)
-            if register_security_module:
-                try:
-                    # 보안 모듈 DLL 경로 - 실제 파일이 위치한 경로로 수정 필요
-                    config = get_config()
-                    module_path = os.path.abspath(config.security_module_path if config else SECURITY_MODULE_DEFAULT_PATH)
-                    self.hwp.RegisterModule(SECURITY_MODULE_NAME, module_path)
-                    print("보안 모듈이 등록되었습니다.")
-                except Exception as e:
-                    print(f"보안 모듈 등록 실패 (무시하고 계속 진행): {e}")
-            
+        except OSError as e:
+            raise HwpConnectionError(f"한글 프로그램 COM 객체 생성 실패: {e} (HWP가 설치되지 않았거나 등록되지 않았습니다)")
+        
+        # 보안 모듈 등록
+        if register_security_module:
+            self._register_security_module()
+        
+        # 창 표시 설정
+        try:
             self.visible = visible
             self.hwp.XHwpWindows.Item(0).Visible = visible
             self.is_hwp_running = True
             return True
+        except AttributeError as e:
+            raise HwpConnectionError(f"한글 프로그램 창 설정 실패: {e} (HWP API 호환성 문제)")
         except Exception as e:
-            raise HwpConnectionError(f"한글 프로그램 연결 실패: {e}")
+            raise HwpConnectionError(f"한글 프로그램 초기화 실패: {e}")
+    
+    def _register_security_module(self):
+        """보안 모듈을 등록합니다. (파일 경로 체크 보안 경고창 방지)"""
+        try:
+            config = get_config()
+            module_path = os.path.abspath(config.security_module_path if config else SECURITY_MODULE_DEFAULT_PATH)
+            self.hwp.RegisterModule(SECURITY_MODULE_NAME, module_path)
+            logger.info(f"보안 모듈이 등록되었습니다: {module_path}")
+        except FileNotFoundError:
+            logger.warning(f"보안 모듈 파일을 찾을 수 없습니다: {module_path} (보안 경고가 나타날 수 있습니다)")
+        except AttributeError as e:
+            logger.warning(f"보안 모듈 등록 API 호출 실패: {e} (HWP 버전이 오래되었을 수 있습니다)")
+        except Exception as e:
+            logger.warning(f"보안 모듈 등록 중 예상치 못한 오류: {e} (계속 진행합니다)")
 
     def disconnect(self) -> bool:
         """
@@ -138,8 +152,11 @@ class HwpController:
                 self.is_hwp_running = False
                 
             return True
+        except AttributeError as e:
+            logger.error(f"HWP 객체 해제 중 속성 오류: {e}")
+            return False
         except Exception as e:
-            print(f"한글 프로그램 종료 실패: {e}")
+            logger.error(f"한글 프로그램 연결 해제 중 예상치 못한 오류: {e}")
             return False
 
     def create_new_document(self) -> bool:
@@ -156,8 +173,16 @@ class HwpController:
             self.hwp.Run("FileNew")
             self.current_document_path = None
             return True
+        except HwpConnectionError:
+            raise
+        except AttributeError as e:
+            logger.error(f"HWP API 메서드 호출 실패: {e}")
+            return False
+        except OSError as e:
+            logger.error(f"새 문서 생성 중 시스템 오류: {e}")
+            return False
         except Exception as e:
-            print(f"새 문서 생성 실패: {e}")
+            logger.error(f"새 문서 생성 중 예상치 못한 오류: {e}")
             return False
 
     def open_document(self, file_path: str) -> bool:
@@ -233,8 +258,13 @@ class HwpController:
             return True
         except (HwpConnectionError, HwpNotRunningError, HwpDocumentError):
             raise
+        except OSError as e:
+            raise HwpDocumentSaveError(file_path or self.current_document_path or "현재 문서", f"파일 시스템 오류: {e}")
+        except AttributeError as e:
+            logger.error(f"HWP API 호출 오류: {e}")
+            raise HwpDocumentSaveError(file_path or self.current_document_path or "현재 문서", f"API 호출 실패: {e}")
         except Exception as e:
-            raise HwpDocumentSaveError(file_path or "현재 문서", str(e))
+            raise HwpDocumentSaveError(file_path or self.current_document_path or "현재 문서", str(e))
 
     def insert_text(self, text: str, preserve_linebreaks: bool = True) -> bool:
         """
@@ -263,8 +293,11 @@ class HwpController:
             else:
                 # 줄바꿈이 없거나 유지하지 않는 경우 한 번에 처리
                 return self._insert_text_direct(text)
+        except AttributeError as e:
+            logger.error(f"텍스트 삽입 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            print(f"텍스트 삽입 실패: {e}")
+            logger.error(f"텍스트 삽입 중 예상치 못한 오류: {e}")
             return False
 
     def _set_table_cursor(self) -> bool:
@@ -304,8 +337,11 @@ class HwpController:
             self.hwp.HParameterSet.HInsertText.Text = text
             self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
             return True
+        except AttributeError as e:
+            logger.error(f"InsertText 액션 실행 실패: {e} (HWP API 버전을 확인하세요)")
+            return False
         except Exception as e:
-            print(f"텍스트 직접 삽입 실패: {e}")
+            logger.error(f"텍스트 직접 삽입 중 예상치 못한 오류: {e}")
             return False
 
     def set_font(self, font_name: str, font_size: int, bold: bool = False, italic: bool = False, 
@@ -336,8 +372,11 @@ class HwpController:
                 underline=False,
                 select_previous_text=select_previous_text
             )
+        except AttributeError as e:
+            logger.error(f"글꼴 설정 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"글꼴 설정 실패: {e}")
+            logger.error(f"글꼴 설정 중 예상치 못한 오류: {e}")
             return False
 
     def set_font_style(self, font_name: str = None, font_size: int = None, 
@@ -376,8 +415,11 @@ class HwpController:
                 underline=underline
             )
             
+        except AttributeError as e:
+            logger.error(f"글꼴 스타일 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"글꼴 스타일 설정 실패: {e}")
+            logger.error(f"글꼴 스타일 설정 중 예상치 못한 오류: {e}")
             return False
 
     def _get_current_position(self):
@@ -409,6 +451,12 @@ class HwpController:
             if pos:
                 self.hwp.SetPos(*pos)
             return True
+        except TypeError as e:
+            logger.error(f"위치 설정 실패 - 잘못된 매개변수 타입: {str(e)}")
+            return False
+        except AttributeError as e:
+            logger.error(f"위치 설정 실패 - HWP API 호출 오류: {str(e)}")
+            return False
         except Exception as e:
             logger.error(f"위치 설정 실패: {str(e)}")
             return False
@@ -454,6 +502,10 @@ class HwpController:
             return True
         except (HwpConnectionError, HwpNotRunningError, HwpInvalidParameterError):
             raise
+        except AttributeError as e:
+            raise HwpTableError(f"HWP API 호출 오류: {e} (표 생성 기능을 지원하지 않는 HWP 버전일 수 있습니다)")
+        except ValueError as e:
+            raise HwpInvalidParameterError("rows/cols", f"{rows}x{cols}", "양의 정수")
         except Exception as e:
             raise HwpTableError(f"표 삽입 실패: {e}")
 
@@ -514,8 +566,11 @@ class HwpController:
             # 찾기 명령 실행 (매크로 사용)
             result = self.hwp.Run(f'FindText "{text}" 1')  # 1=정방향검색
             return result  # True 또는 False 반환
+        except AttributeError as e:
+            logger.error(f"텍스트 찾기 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"텍스트 찾기 실패: {e}")
+            logger.error(f"텍스트 찾기 중 예상치 못한 오류: {e}")
             return False
 
     def replace_text(self, find_text: str, replace_text: str, replace_all: bool = False) -> bool:
@@ -548,8 +603,11 @@ class HwpController:
                     result = self.hwp.Run(f'Replace "{replace_text}"')
                     return bool(result)
                 return False
+        except AttributeError as e:
+            logger.error(f"텍스트 바꾸기 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"텍스트 바꾸기 실패: {e}")
+            logger.error(f"텍스트 바꾸기 중 예상치 못한 오류: {e}")
             return False
 
     def get_text(self) -> str:
@@ -564,8 +622,11 @@ class HwpController:
                 return ""
             
             return self.hwp.GetTextFile("TEXT", "")
+        except AttributeError as e:
+            logger.error(f"텍스트 가져오기 API 호출 실패: {e}")
+            return ""
         except Exception as e:
-            print(f"텍스트 가져오기 실패: {e}")
+            logger.error(f"텍스트 가져오기 중 예상치 못한 오류: {e}")
             return ""
 
     def set_page_setup(self, orientation: str = "portrait", margin_left: int = 1000, 
@@ -593,8 +654,14 @@ class HwpController:
             # 페이지 설정 매크로
             result = self.hwp.Run(f"PageSetup3 {orient_val} {margin_left} {margin_right} {margin_top} {margin_bottom}")
             return bool(result)
+        except AttributeError as e:
+            logger.error(f"페이지 설정 API 호출 실패: {e}")
+            return False
+        except ValueError as e:
+            logger.error(f"페이지 설정 값 오류: {e} (orientation은 'portrait' 또는 'landscape'여야 합니다)")
+            return False
         except Exception as e:
-            print(f"페이지 설정 실패: {e}")
+            logger.error(f"페이지 설정 중 예상치 못한 오류: {e}")
             return False
 
     def insert_paragraph(self) -> bool:
@@ -610,8 +677,11 @@ class HwpController:
             
             self.hwp.HAction.Run("BreakPara")
             return True
+        except AttributeError as e:
+            logger.error(f"단락 삽입 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"단락 삽입 실패: {e}")
+            logger.error(f"단락 삽입 중 예상치 못한 오류: {e}")
             return False
 
     def select_all(self) -> bool:
@@ -627,8 +697,11 @@ class HwpController:
             
             self.hwp.Run("SelectAll")
             return True
+        except AttributeError as e:
+            logger.error(f"전체 선택 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"전체 선택 실패: {e}")
+            logger.error(f"전체 선택 중 예상치 못한 오류: {e}")
             return False
 
     def fill_cell_field(self, field_name: str, value: str, n: int = 1) -> bool:
@@ -677,8 +750,14 @@ class HwpController:
             self.hwp.HAction.Execute("HGo_SetFieldText", self.hwp.HParameterSet.HGo.HSet)
             
             return True
+        except AttributeError as e:
+            logger.error(f"셀필드 API 호출 실패: {e}")
+            return False
+        except IndexError as e:
+            logger.error(f"셀필드 인덱스 오류: {e} (n={n}이 유효한 범위를 벗어났습니다)")
+            return False
         except Exception as e:
-            print(f"셀필드 값 채우기 실패: {e}")
+            logger.error(f"셀필드 값 채우기 중 예상치 못한 오류: {e}")
             return False
         
     def select_last_text(self) -> bool:
@@ -706,8 +785,11 @@ class HwpController:
             self.hwp.SelectText(start_pos, current_pos)
             
             return True
+        except AttributeError as e:
+            logger.error(f"텍스트 선택 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"텍스트 선택 실패: {e}")
+            logger.error(f"텍스트 선택 중 예상치 못한 오류: {e}")
             return False
 
     def fill_table_with_data(self, data: List[List[str]], start_row: int = 1, start_col: int = 1, has_header: bool = False) -> bool:
@@ -723,14 +805,42 @@ class HwpController:
         Returns:
             bool: 작업 성공 여부
         """
+        if not self.is_hwp_running:
+            return False
+        
         try:
-            if not self.is_hwp_running:
-                return False
-                
             # 현재 위치 저장 (나중에 복원을 위해)
             original_pos = self.hwp.GetPos()
+        except Exception as e:
+            logger.warning(f"현재 위치 저장 실패: {e}")
+            original_pos = None
+        
+        try:
+            # 표의 시작 위치로 이동
+            if not self._move_to_table_start(start_row, start_col):
+                return False
             
-            # 1. 표 첫 번째 셀로 이동
+            # 데이터 채우기
+            for row_idx, row_data in enumerate(data):
+                if not self._fill_table_row(row_data, row_idx, has_header):
+                    logger.error(f"{row_idx + 1}번째 행 처리 실패")
+                    return False
+                    
+                # 다음 행으로 이동 (마지막 행이 아닌 경우)
+                if row_idx < len(data) - 1:
+                    if not self._move_to_next_row(len(row_data)):
+                        return False
+            
+            # 표 밖으로 커서 이동
+            return self._exit_table()
+            
+        except Exception as e:
+            logger.error(f"표 데이터 채우기 중 예상치 못한 오류: {e}")
+            return False
+    
+    def _move_to_table_start(self, start_row: int, start_col: int) -> bool:
+        """표의 시작 위치로 이동합니다."""
+        try:
             self.hwp.Run("TableSelCell")  # 현재 셀 선택
             self.hwp.Run("TableSelTable") # 표 전체 선택
             self.hwp.Run("Cancel")        # 선택 취소 (커서는 표의 시작 부분에 위치)
@@ -743,45 +853,61 @@ class HwpController:
                 
             for _ in range(start_col - 1):
                 self.hwp.Run("TableRightCell")
-            
-            # 데이터 채우기
-            for row_idx, row_data in enumerate(data):
-                for col_idx, cell_value in enumerate(row_data):
-                    # 셀 선택 및 내용 삭제
-                    self.hwp.Run("TableSelCell")
-                    self.hwp.Run("Delete")
-                    
-                    # 셀에 값 입력
-                    if has_header and row_idx == 0:
-                        self.set_font_style(bold=True)
-                        self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
-                        self.hwp.HParameterSet.HInsertText.Text = cell_value
-                        self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
-                        self.set_font_style(bold=False)
-                    else:
-                        self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
-                        self.hwp.HParameterSet.HInsertText.Text = cell_value
-                        self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
-                    
-                    # 다음 셀로 이동 (마지막 셀이 아닌 경우)
-                    if col_idx < len(row_data) - 1:
-                        self.hwp.Run("TableRightCell")
                 
-                # 다음 행으로 이동 (마지막 행이 아닌 경우)
-                if row_idx < len(data) - 1:
-                    for _ in range(len(row_data) - 1):
-                        self.hwp.Run("TableLeftCell")
-                    self.hwp.Run("TableLowerCell")
-            
-            # 표 밖으로 커서 이동
+            return True
+        except Exception as e:
+            logger.error(f"표 시작 위치로 이동 실패: {e}")
+            return False
+    
+    def _fill_table_row(self, row_data: List[str], row_idx: int, has_header: bool) -> bool:
+        """표의 한 행을 채웁니다."""
+        try:
+            for col_idx, cell_value in enumerate(row_data):
+                # 셀 선택 및 내용 삭제
+                self.hwp.Run("TableSelCell")
+                self.hwp.Run("Delete")
+                
+                # 셀에 값 입력
+                if has_header and row_idx == 0:
+                    self.set_font_style(bold=True)
+                    self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+                    self.hwp.HParameterSet.HInsertText.Text = cell_value
+                    self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+                    self.set_font_style(bold=False)
+                else:
+                    self.hwp.HAction.GetDefault("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+                    self.hwp.HParameterSet.HInsertText.Text = cell_value
+                    self.hwp.HAction.Execute("InsertText", self.hwp.HParameterSet.HInsertText.HSet)
+                
+                # 다음 셀로 이동 (마지막 셀이 아닌 경우)
+                if col_idx < len(row_data) - 1:
+                    self.hwp.Run("TableRightCell")
+                    
+            return True
+        except Exception as e:
+            logger.error(f"표 행 채우기 실패: {e}")
+            return False
+    
+    def _move_to_next_row(self, col_count: int) -> bool:
+        """다음 행의 첫 번째 셀로 이동합니다."""
+        try:
+            for _ in range(col_count - 1):
+                self.hwp.Run("TableLeftCell")
+            self.hwp.Run("TableLowerCell")
+            return True
+        except Exception as e:
+            logger.error(f"다음 행으로 이동 실패: {e}")
+            return False
+    
+    def _exit_table(self) -> bool:
+        """표 밖으로 커서를 이동합니다."""
+        try:
             self.hwp.Run("TableSelCell")  # 현재 셀 선택
             self.hwp.Run("Cancel")        # 선택 취소
             self.hwp.Run("MoveDown")      # 아래로 이동
-            
             return True
-            
         except Exception as e:
-            print(f"표 데이터 채우기 실패: {e}")
+            logger.error(f"표 밖으로 이동 실패: {e}")
             return False
     
     def insert_text_with_font(self, text: str, font_name: str = None, font_size: int = None, 
@@ -835,8 +961,11 @@ class HwpController:
             # 2단계: 텍스트 삽입
             return self._insert_text_direct(text)
             
+        except AttributeError as e:
+            logger.error(f"서식 텍스트 삽입 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"서식이 적용된 텍스트 삽입 실패: {e}")
+            logger.error(f"서식이 적용된 텍스트 삽입 중 예상치 못한 오류: {e}")
             return False
     
     def apply_font_to_selection(self, font_name: str = None, font_size: int = None, 
@@ -874,8 +1003,11 @@ class HwpController:
                 select_previous_text=False  # 이미 선택된 상태이므로 False
             )
             
+        except AttributeError as e:
+            logger.error(f"선택 텍스트 서식 적용 API 호출 실패: {e}")
+            return False
         except Exception as e:
-            print(f"선택된 텍스트에 서식 적용 실패: {e}")
+            logger.error(f"선택된 텍스트에 서식 적용 중 예상치 못한 오류: {e}")
             return False
     
     def get_advanced_features(self):
