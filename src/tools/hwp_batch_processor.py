@@ -279,9 +279,6 @@ class HwpBatchProcessor:
                     progress = (chunk_end / total_rows) * 100
                     progress_callback(progress, chunk_end, total_rows)
                 
-                # 메모리 관리를 위한 짧은 대기
-                time.sleep(0.01)
-                
             except Exception as e:
                 logger.error(f"청크 처리 실패: 행 {chunk_start}-{chunk_end} - {e}")
                 return False

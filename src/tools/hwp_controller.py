@@ -8,7 +8,10 @@ import win32com.client
 import win32gui
 import win32con
 import time
+import logging
 from typing import Optional, List, Dict, Any, Tuple
+
+logger = logging.getLogger(__name__)
 try:
     from .hwp_exceptions import (
         HwpError, HwpConnectionError, HwpNotRunningError, HwpDocumentError,
@@ -281,7 +284,8 @@ class HwpController:
             self.hwp.Run("CharRight")
             self.hwp.Run("CharLeft")
             return True
-        except:
+        except Exception as e:
+            logger.error(f"표 셀 선택 실패: {str(e)}")
             return False
 
     def _insert_text_direct(self, text: str) -> bool:
@@ -362,53 +366,51 @@ class HwpController:
             if select_previous_text:
                 self.select_last_text()
             
-            # 글꼴 설정을 위한 액션 초기화
-            self.hwp.HAction.GetDefault("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
-            
-            # 글꼴 이름 설정
-            if font_name:
-                self.hwp.HParameterSet.HCharShape.FaceNameHangul = font_name
-                self.hwp.HParameterSet.HCharShape.FaceNameLatin = font_name
-                self.hwp.HParameterSet.HCharShape.FaceNameHanja = font_name
-                self.hwp.HParameterSet.HCharShape.FaceNameJapanese = font_name
-                self.hwp.HParameterSet.HCharShape.FaceNameOther = font_name
-                self.hwp.HParameterSet.HCharShape.FaceNameSymbol = font_name
-                self.hwp.HParameterSet.HCharShape.FaceNameUser = font_name
-            
-            # 글꼴 크기 설정 (hwpunit, 10pt = 1000)
-            if font_size:
-                self.hwp.HParameterSet.HCharShape.Height = font_size * 100
-            
-            # 스타일 설정 - 명시적으로 1/0 값 사용
-            self.hwp.HParameterSet.HCharShape.Bold = 1 if bold else 0
-            self.hwp.HParameterSet.HCharShape.Italic = 1 if italic else 0
-            self.hwp.HParameterSet.HCharShape.UnderlineType = 1 if underline else 0
-            
-            # 변경사항 적용
-            self.hwp.HAction.Execute("CharShape", self.hwp.HParameterSet.HCharShape.HSet)
-            
-            return True
+            # hwp_utils의 공통 함수 사용
+            return set_font_properties(
+                self.hwp,
+                font_name=font_name,
+                font_size=font_size,
+                bold=bold,
+                italic=italic,
+                underline=underline
+            )
             
         except Exception as e:
             print(f"글꼴 스타일 설정 실패: {e}")
             return False
 
     def _get_current_position(self):
-        """현재 커서 위치 정보를 가져옵니다."""
+        """
+        현재 커서 위치 정보를 가져옵니다.
+        
+        Returns:
+            tuple or None: (위치 유형, List ID, Para ID, CharPos) 튜플 또는 실패 시 None
+        """
         try:
             # GetPos()는 현재 위치 정보를 (위치 유형, List ID, Para ID, CharPos)의 튜플로 반환
             return self.hwp.GetPos()
-        except:
+        except Exception as e:
+            logger.error(f"현재 위치 정보 가져오기 실패: {str(e)}")
             # 실패 시 None 반환
             return None
 
     def _set_position(self, pos):
-        """커서 위치를 지정된 위치로 변경합니다."""
+        """
+        커서 위치를 지정된 위치로 변경합니다.
+        
+        Args:
+            pos: GetPos()로 얻은 위치 정보 튜플
+            
+        Returns:
+            bool: 성공 여부
+        """
         try:
             if pos:
                 self.hwp.SetPos(*pos)
             return True
-        except:
+        except Exception as e:
+            logger.error(f"위치 설정 실패: {str(e)}")
             return False
 
     def insert_table(self, rows: int, cols: int) -> bool:
@@ -910,6 +912,7 @@ class HwpController:
             # 간단한 명령 실행으로 연결 상태 확인
             self.hwp.Version
             return True
-        except:
+        except Exception as e:
+            logger.error(f"HWP 연결 상태 확인 실패: {str(e)}")
             self.is_hwp_running = False
             return False

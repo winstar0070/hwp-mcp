@@ -308,6 +308,92 @@ hwp-mcp/
 - 테이블 전용 도구 모듈(`hwp_table_tools.py`) 추가
 - `hwp_fill_column_numbers` 함수에 `from_first_cell` 옵션 추가
 
+## 설정 관리 (config.py)
+
+HWP-MCP는 유연한 설정 관리 시스템을 제공합니다.
+
+### 설정 파일 위치
+
+설정 파일은 다음 순서로 검색됩니다:
+1. 환경 변수 `HWP_MCP_CONFIG`에 지정된 경로
+2. 현재 디렉토리의 `hwp_config.json`
+3. 사용자 홈 디렉토리의 `~/.hwp_mcp/config.json`
+4. 프로젝트 루트의 `hwp_config.json`
+
+### 설정 파일 예시
+
+```json
+{
+  "auto_connect": true,
+  "visible": true,
+  "register_security_module": true,
+  "security_module_path": "D:/hwp-mcp/security_module/FilePathCheckerModuleExample.dll",
+  "batch_size": 100,
+  "timeout": 300,
+  "retry_count": 3,
+  "default_font": "맑은 고딕",
+  "default_font_size": 10,
+  "default_paper_size": "A4",
+  "log_level": "INFO",
+  "debug_mode": false
+}
+```
+
+### 주요 설정 항목
+
+#### 일반 설정
+- `auto_connect`: HWP 자동 연결 여부 (기본값: true)
+- `visible`: HWP 창 표시 여부 (기본값: true)
+- `register_security_module`: 보안 모듈 자동 등록 (기본값: true)
+
+#### 성능 설정
+- `batch_size`: 배치 작업 청크 크기 (기본값: 100)
+- `timeout`: 작업 타임아웃 (초) (기본값: 300)
+- `retry_count`: 재시도 횟수 (기본값: 3)
+
+#### 문서 기본값
+- `default_font`: 기본 글꼴 (기본값: "맑은 고딕")
+- `default_font_size`: 기본 글꼴 크기 (기본값: 10)
+- `default_paper_size`: 기본 용지 크기 (기본값: "A4")
+- `default_orientation`: 기본 용지 방향 (기본값: "portrait")
+
+#### 로깅 설정
+- `log_level`: 로그 레벨 (기본값: "INFO")
+- `log_file`: 로그 파일 이름 (기본값: "hwp_mcp.log")
+- `debug_mode`: 디버그 모드 (기본값: false)
+
+### 프로그래밍 방식으로 설정 관리
+
+```python
+from src.tools.config import get_config, update_config, save_config
+
+# 현재 설정 가져오기
+config = get_config()
+print(f"현재 글꼴: {config.default_font}")
+
+# 설정 업데이트
+update_config(
+    default_font="바탕",
+    default_font_size=12,
+    debug_mode=True
+)
+
+# 설정 저장
+save_config("my_config.json")
+```
+
+### 환경별 설정
+
+개발, 테스트, 프로덕션 환경별로 다른 설정을 사용하려면:
+
+```bash
+# 개발 환경
+export HWP_MCP_CONFIG=config/development.json
+
+# 프로덕션 환경
+export HWP_MCP_CONFIG=config/production.json
+```
+
 ## 라이선스
 
 이 프로젝트는 MIT 라이선스에 따라 배포됩니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
