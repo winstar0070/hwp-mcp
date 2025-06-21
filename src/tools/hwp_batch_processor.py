@@ -376,6 +376,9 @@ class HwpBatchProcessor:
             List[List[List[Any]]]: 분할된 데이터 청크
         """
         total_rows = len(data)
+        if total_rows == 0:
+            return []
+            
         chunk_size = (total_rows + num_workers - 1) // num_workers
         
         chunks = []

@@ -22,9 +22,9 @@ def require_hwp_connection(func: Callable[..., T]) -> Callable[..., T]:
     @wraps(func)
     def wrapper(self, *args, **kwargs) -> T:
         if not hasattr(self, 'is_hwp_running') or not self.is_hwp_running:
-            raise HwpNotRunningError("HWP가 실행되지 않았습니다.")
+            raise HwpNotRunningError()
         if not hasattr(self, 'hwp') or not self.hwp:
-            raise HwpNotRunningError("HWP 객체가 초기화되지 않았습니다.")
+            raise HwpNotRunningError()
         return func(self, *args, **kwargs)
     return wrapper
 
