@@ -12,7 +12,15 @@ try:
         PDF_QUALITY, PAPER_SIZES, PAGE_ORIENTATION,
         DEFAULT_MARGINS, TEXT_ALIGNMENT, SHAPE_TYPES
     )
+    from .error_handling_guide import validate_file_path
 except ImportError:
+    # validate_file_path를 위한 간단한 fallback
+    def validate_file_path(path: str, must_exist: bool = False) -> str:
+        import os
+        abs_path = os.path.abspath(path)
+        if must_exist and not os.path.exists(abs_path):
+            raise FileNotFoundError(f"파일을 찾을 수 없습니다: {abs_path}")
+        return abs_path
     # 상수가 없는 경우 기본값 사용
     HWPUNIT_PER_MM = 2834.64
     HWPUNIT_PER_CM = 28346.4
@@ -61,12 +69,11 @@ class HwpAdvancedFeatures:
             bool: 성공 여부
         """
         try:
-            if not os.path.exists(image_path):
-                logger.error(f"이미지 파일을 찾을 수 없습니다: {image_path}")
-                return False
+            # 이미지 파일 경로 검증
+            validated_path = validate_file_path(image_path, must_exist=True)
             
             # 이미지 삽입
-            ctrl = self.hwp.InsertPicture(image_path, Embedded=True, AsChar=as_char)
+            ctrl = self.hwp.InsertPicture(validated_path, Embedded=True, AsChar=as_char)
             if not ctrl:
                 logger.error("이미지 삽입 실패")
                 return False
@@ -107,8 +114,14 @@ class HwpAdvancedFeatures:
             logger.info(f"이미지 삽입 성공: {image_path}")
             return True
             
+        except FileNotFoundError:
+            logger.error(f"이미지 파일을 찾을 수 없습니다: {image_path}")
+            return False
+        except AttributeError as e:
+            logger.error(f"이미지 삽입 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"이미지 삽입 실패: {e}")
+            logger.error(f"이미지 삽입 중 예상치 못한 오류: {e}")
             return False
     
     def find_replace(self, find_text: str, replace_text: str = "", 
@@ -161,8 +174,14 @@ class HwpAdvancedFeatures:
             logger.info(f"찾기/바꾸기 완료: '{find_text}' -> '{replace_text}', {replaced_count}개 바뀜")
             return replaced_count
             
+        except AttributeError as e:
+            logger.error(f"찾기/바꾸기 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return 0
+        except ValueError as e:
+            logger.error(f"찾기/바꾸기 매개변수 오류: {e}")
+            return 0
         except Exception as e:
-            logger.error(f"찾기/바꾸기 실패: {e}")
+            logger.error(f"찾기/바꾸기 중 예상치 못한 오류: {e}")
             return 0
     
     def export_pdf(self, output_path: str, quality: str = "high",
@@ -184,24 +203,33 @@ class HwpAdvancedFeatures:
             # PDF 저장 설정 - 현재 HWP API는 PDF 품질 설정을 직접 지원하지 않음
             # quality 매개변수는 향후 API 업데이트를 위해 유지
             
-            # 출력 경로 확인
-            output_dir = os.path.dirname(output_path)
+            # 출력 경로 검증 및 정규화
+            validated_output_path = validate_file_path(output_path, must_exist=False)
+            
+            # 출력 디렉토리 확인 및 생성
+            output_dir = os.path.dirname(validated_output_path)
             if output_dir and not os.path.exists(output_dir):
                 os.makedirs(output_dir)
             
             # PDF로 저장
             # Format: "PDF" 지정
-            result = self.hwp.SaveAs(output_path, Format="PDF")
+            result = self.hwp.SaveAs(validated_output_path, Format="PDF")
             
             if result:
-                logger.info(f"PDF 변환 성공: {output_path}")
+                logger.info(f"PDF 변환 성공: {validated_output_path}")
                 return True
             else:
                 logger.error("PDF 변환 실패")
                 return False
                 
+        except OSError as e:
+            logger.error(f"PDF 파일 저장 오류: {e} (경로를 확인하고 쓰기 권한이 있는지 확인하세요)")
+            return False
+        except AttributeError as e:
+            logger.error(f"PDF 변환 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"PDF 변환 실패: {e}")
+            logger.error(f"PDF 변환 중 예상치 못한 오류: {e}")
             return False
     
     # ============== 2단계: 문서 품질 향상 기능들 ==============
@@ -253,8 +281,17 @@ class HwpAdvancedFeatures:
             logger.info(f"페이지 설정 완료: {paper_size} {orientation}")
             return True
             
+        except KeyError as e:
+            logger.error(f"지원하지 않는 용지 크기: {e} (A4, A3, B5, Letter, Legal 중 선택하세요)")
+            return False
+        except AttributeError as e:
+            logger.error(f"페이지 설정 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except ValueError as e:
+            logger.error(f"페이지 설정 값 오류: {e} (여백은 mm 단위로 입력하세요)")
+            return False
         except Exception as e:
-            logger.error(f"페이지 설정 실패: {e}")
+            logger.error(f"페이지 설정 중 예상치 못한 오류: {e}")
             return False
     
     def set_header_footer(self, header_text: str = "", footer_text: str = "",
@@ -334,8 +371,14 @@ class HwpAdvancedFeatures:
             logger.info("머리말/꼬리말 설정 완료")
             return True
             
+        except AttributeError as e:
+            logger.error(f"머리말/꼬리말 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except ValueError as e:
+            logger.error(f"머리말/꼬리말 설정 값 오류: {e}")
+            return False
         except Exception as e:
-            logger.error(f"머리말/꼬리말 설정 실패: {e}")
+            logger.error(f"머리말/꼬리말 설정 중 예상치 못한 오류: {e}")
             return False
     
     def set_paragraph(self, alignment: str = "left", line_spacing: float = 1.0,
@@ -391,8 +434,14 @@ class HwpAdvancedFeatures:
             logger.info("문단 서식 설정 완료")
             return True
             
+        except AttributeError as e:
+            logger.error(f"문단 서식 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except ValueError as e:
+            logger.error(f"문단 서식 값 오류: {e} (간격은 mm 단위, 줄 간격은 배수로 입력하세요)")
+            return False
         except Exception as e:
-            logger.error(f"문단 서식 설정 실패: {e}")
+            logger.error(f"문단 서식 설정 중 예상치 못한 오류: {e}")
             return False
     
     # ============== 3단계: 고급 기능들 ==============
@@ -417,8 +466,11 @@ class HwpAdvancedFeatures:
             logger.info("목차 생성 완료")
             return True
             
+        except AttributeError as e:
+            logger.error(f"목차 생성 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"목차 생성 실패: {e}")
+            logger.error(f"목차 생성 중 예상치 못한 오류: {e}")
             return False
     
     def insert_shape(self, shape_type: str = "rectangle", 
@@ -477,8 +529,14 @@ class HwpAdvancedFeatures:
             logger.info(f"{shape_type} 도형 삽입 완료")
             return True
             
+        except AttributeError as e:
+            logger.error(f"도형 삽입 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except KeyError as e:
+            logger.error(f"지원하지 않는 도형 유형: {e}")
+            return False
         except Exception as e:
-            logger.error(f"도형 삽입 실패: {e}")
+            logger.error(f"도형 삽입 중 예상치 못한 오류: {e}")
             return False
     
     def save_as_template(self, template_name: str, template_path: str = None,
@@ -502,18 +560,27 @@ class HwpAdvancedFeatures:
                     os.makedirs(template_dir)
                 template_path = os.path.join(template_dir, f"{template_name}.hwt")
             
+            # 템플릿 경로 검증 및 정규화
+            validated_template_path = validate_file_path(template_path, must_exist=False)
+            
             # 템플릿으로 저장
-            result = self.hwp.SaveAs(template_path, Format="HWT")
+            result = self.hwp.SaveAs(validated_template_path, Format="HWT")
             
             if result:
-                logger.info(f"템플릿 저장 성공: {template_path}")
+                logger.info(f"템플릿 저장 성공: {validated_template_path}")
                 return True
             else:
                 logger.error("템플릿 저장 실패")
                 return False
                 
+        except OSError as e:
+            logger.error(f"템플릿 파일 저장 오류: {e} (경로를 확인하고 쓰기 권한이 있는지 확인하세요)")
+            return False
+        except AttributeError as e:
+            logger.error(f"템플릿 저장 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"템플릿 저장 실패: {e}")
+            logger.error(f"템플릿 저장 중 예상치 못한 오류: {e}")
             return False
     
     def apply_template(self, template_path: str) -> bool:
@@ -527,21 +594,26 @@ class HwpAdvancedFeatures:
             bool: 성공 여부
         """
         try:
-            if not os.path.exists(template_path):
-                logger.error(f"템플릿 파일을 찾을 수 없습니다: {template_path}")
-                return False
+            # 템플릿 파일 경로 검증
+            validated_template_path = validate_file_path(template_path, must_exist=True)
             
             # 템플릿 적용 (새 문서 생성 후 템플릿 로드)
             self.hwp_controller.create_new_document()
-            result = self.hwp.Open(template_path, Format="HWT")
+            result = self.hwp.Open(validated_template_path, Format="HWT")
             
             if result:
-                logger.info(f"템플릿 적용 성공: {template_path}")
+                logger.info(f"템플릿 적용 성공: {validated_template_path}")
                 return True
             else:
                 logger.error("템플릿 적용 실패")
                 return False
                 
+        except FileNotFoundError:
+            logger.error(f"템플릿 파일을 찾을 수 없습니다: {template_path}")
+            return False
+        except AttributeError as e:
+            logger.error(f"템플릿 적용 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"템플릿 적용 실패: {e}")
+            logger.error(f"템플릿 적용 중 예상치 못한 오류: {e}")
             return False

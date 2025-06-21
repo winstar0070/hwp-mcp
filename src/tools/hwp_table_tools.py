@@ -57,9 +57,15 @@ class HwpTableTools:
                 return f"Table inserted with {rows} rows and {cols} columns"
             else:
                 return "Error: Failed to insert table"
+        except AttributeError as e:
+            logger.error(f"표 삽입 API 호출 실패: {str(e)}")
+            return f"Error: HWP API 호출 실패 - HWP 연결 상태를 확인하세요"
+        except ValueError as e:
+            logger.error(f"표 삽입 매개변수 오류: {str(e)}")
+            return f"Error: 잘못된 매개변수 - 행/열 수는 양의 정수여야 합니다"
         except Exception as e:
-            logger.error(f"Error inserting table: {str(e)}", exc_info=True)
-            return f"Error: {str(e)}"
+            logger.error(f"표 삽입 중 예상치 못한 오류: {str(e)}", exc_info=True)
+            return f"Error: 표 삽입 실패 - {str(e)}"
 
     def set_cell_text(self, row: int, col: int, text: str) -> str:
         """
@@ -83,9 +89,15 @@ class HwpTableTools:
                 return f"셀({row}, {col})에 텍스트 입력 완료"
             else:
                 return f"셀({row}, {col})에 텍스트 입력 실패"
+        except AttributeError as e:
+            logger.error(f"셀 텍스트 설정 API 호출 실패: {str(e)}")
+            return f"Error: HWP API 호출 실패 - 셀 선택이 올바른지 확인하세요"
+        except IndexError as e:
+            logger.error(f"셀 위치 오류: {str(e)}")
+            return f"Error: 잘못된 셀 위치 - 표 범위를 확인하세요"
         except Exception as e:
-            logger.error(f"셀 텍스트 설정 중 오류: {str(e)}", exc_info=True)
-            return f"Error: {str(e)}"
+            logger.error(f"셀 텍스트 설정 중 예상치 못한 오류: {str(e)}", exc_info=True)
+            return f"Error: 셀 텍스트 설정 실패 - {str(e)}"
 
     def merge_cells(self, start_row: int, start_col: int, end_row: int, end_col: int) -> str:
         """
@@ -110,9 +122,15 @@ class HwpTableTools:
                 return f"셀 병합 완료 ({start_row},{start_col}) - ({end_row},{end_col})"
             else:
                 return f"셀 병합 실패"
+        except AttributeError as e:
+            logger.error(f"셀 병합 API 호출 실패: {str(e)}")
+            return f"Error: HWP API 호출 실패 - 표가 선택되지 않았습니다"
+        except ValueError as e:
+            logger.error(f"셀 병합 범위 오류: {str(e)}")
+            return f"Error: 잘못된 셀 범위 - 시작/끝 위치를 확인하세요"
         except Exception as e:
-            logger.error(f"셀 병합 중 오류: {str(e)}", exc_info=True)
-            return f"Error: {str(e)}"
+            logger.error(f"셀 병합 중 예상치 못한 오류: {str(e)}", exc_info=True)
+            return f"Error: 셀 병합 실패 - {str(e)}"
 
     def get_cell_text(self, row: int, col: int) -> str:
         """
@@ -133,9 +151,15 @@ class HwpTableTools:
             text = self.hwp_controller.get_table_cell_text(row, col)
             logger.info(f"셀 텍스트 가져오기 완료: ({row}, {col})")
             return text
+        except AttributeError as e:
+            logger.error(f"셀 텍스트 가져오기 API 호출 실패: {str(e)}")
+            return f"Error: HWP API 호출 실패 - 표가 없거나 셀이 선택되지 않았습니다"
+        except IndexError as e:
+            logger.error(f"셀 위치 오류: {str(e)}")
+            return f"Error: 잘못된 셀 위치 - 표 범위를 확인하세요"
         except Exception as e:
-            logger.error(f"셀 텍스트 가져오기 중 오류: {str(e)}", exc_info=True)
-            return f"Error: {str(e)}"
+            logger.error(f"셀 텍스트 가져오기 중 예상치 못한 오류: {str(e)}", exc_info=True)
+            return f"Error: 셀 텍스트 가져오기 실패 - {str(e)}"
 
     def create_table_with_data(self, rows: int, cols: int, data: str = None, has_header: bool = False) -> str:
         """
@@ -196,9 +220,15 @@ class HwpTableTools:
                     return f"표는 생성되었으나 데이터 입력 중 오류 발생: {str(data_error)}"
             
             return f"표 생성 완료 ({rows}x{cols} 크기)"
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON 파싱 오류: {str(e)}")
+            return f"Error: 데이터 형식 오류 - JSON 형식이 올바른지 확인하세요"
+        except TypeError as e:
+            logger.error(f"데이터 타입 오류: {str(e)}")
+            return f"Error: 데이터 타입 오류 - 2차원 배열 형식이어야 합니다"
         except Exception as e:
-            logger.error(f"표 생성 중 오류: {str(e)}", exc_info=True)
-            return f"Error: {str(e)}"
+            logger.error(f"표 생성 중 예상치 못한 오류: {str(e)}", exc_info=True)
+            return f"Error: 표 생성 실패 - {str(e)}"
 
     def fill_table_with_data(self, data_list: List[List[str]], start_row: int = 1, start_col: int = 1, has_header: bool = False) -> str:
         """
@@ -240,9 +270,15 @@ class HwpTableTools:
             else:
                 logger.error("hwp_controller.fill_table_with_data 호출 실패")
                 return "표 데이터 입력 실패"
+        except TypeError as e:
+            logger.error(f"표 데이터 타입 오류: {str(e)}")
+            return f"Error: 데이터 타입 오류 - 리스트 형식이어야 합니다"
+        except AttributeError as e:
+            logger.error(f"표 데이터 입력 API 호출 실패: {str(e)}")
+            return f"Error: HWP API 호출 실패 - HWP 연결 상태를 확인하세요"
         except Exception as e:
-            logger.error(f"표 데이터 입력 중 오류: {str(e)}", exc_info=True)
-            return f"Error: {str(e)}"
+            logger.error(f"표 데이터 입력 중 예상치 못한 오류: {str(e)}", exc_info=True)
+            return f"Error: 표 데이터 입력 실패 - {str(e)}"
     
     def _apply_table_style(self, style_name: str = "default") -> str:
         """
@@ -292,9 +328,15 @@ class HwpTableTools:
             logger.info(f"Table style '{style_name}' applied successfully")
             return f"Table style '{style_name}' applied successfully"
             
+        except AttributeError as e:
+            logger.error(f"표 스타일 적용 API 호출 실패: {str(e)}")
+            return f"Error: HWP API 호출 실패 - 표가 선택되지 않았습니다"
+        except KeyError as e:
+            logger.error(f"알 수 없는 스타일: {str(e)}")
+            return f"Error: 지원하지 않는 스타일 - simple, professional, colorful, dark 중 선택하세요"
         except Exception as e:
-            logger.error(f"Error applying table style: {str(e)}", exc_info=True)
-            return f"Error: {str(e)}"
+            logger.error(f"표 스타일 적용 중 예상치 못한 오류: {str(e)}", exc_info=True)
+            return f"Error: 표 스타일 적용 실패 - {str(e)}"
     
     def _set_table_border_style(self, border_type: int, width: float):
         """테이블 테두리 스타일 설정"""

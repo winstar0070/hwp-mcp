@@ -67,8 +67,11 @@ class HwpDocumentFeatures:
             logger.info(f"각주 삽입 성공: {text[:20]}...")
             return True
             
+        except AttributeError as e:
+            logger.error(f"각주 삽입 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"각주 삽입 실패: {e}")
+            logger.error(f"각주 삽입 중 예상치 못한 오류: {e}")
             return False
     
     def insert_endnote(self, text: str, note_text: str) -> bool:
@@ -99,8 +102,11 @@ class HwpDocumentFeatures:
             logger.info(f"미주 삽입 성공: {text[:20]}...")
             return True
             
+        except AttributeError as e:
+            logger.error(f"미주 삽입 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"미주 삽입 실패: {e}")
+            logger.error(f"미주 삽입 중 예상치 못한 오류: {e}")
             return False
     
     # ============== 하이퍼링크 기능 ==============
@@ -137,8 +143,14 @@ class HwpDocumentFeatures:
             logger.info(f"하이퍼링크 삽입 성공: {text} -> {url}")
             return True
             
+        except AttributeError as e:
+            logger.error(f"하이퍼링크 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except ValueError as e:
+            logger.error(f"하이퍼링크 URL 형식 오류: {e} (유효한 URL을 입력하세요)")
+            return False
         except Exception as e:
-            logger.error(f"하이퍼링크 삽입 실패: {e}")
+            logger.error(f"하이퍼링크 삽입 중 예상치 못한 오류: {e}")
             return False
     
     # ============== 북마크(책갈피) 기능 ==============
@@ -166,8 +178,14 @@ class HwpDocumentFeatures:
             logger.info(f"북마크 삽입 성공: {bookmark_name}")
             return True
             
+        except AttributeError as e:
+            logger.error(f"북마크 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except ValueError as e:
+            logger.error(f"북마크 이름 오류: {e} (북마크 이름이 비어있을 수 없습니다)")
+            return False
         except Exception as e:
-            logger.error(f"북마크 삽입 실패: {e}")
+            logger.error(f"북마크 삽입 중 예상치 못한 오류: {e}")
             return False
     
     def goto_bookmark(self, bookmark_name: str) -> bool:
@@ -189,8 +207,14 @@ class HwpDocumentFeatures:
             logger.info(f"북마크로 이동 성공: {bookmark_name}")
             return True
             
+        except AttributeError as e:
+            logger.error(f"북마크 이동 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except KeyError as e:
+            logger.error(f"북마크를 찾을 수 없습니다: {e} (북마크 이름을 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"북마크로 이동 실패: {e}")
+            logger.error(f"북마크로 이동 중 예상치 못한 오류: {e}")
             return False
     
     # ============== 주석(Comment) 기능 ==============
@@ -219,8 +243,11 @@ class HwpDocumentFeatures:
             logger.info(f"주석 삽입 성공: {comment_text[:20]}...")
             return True
             
+        except AttributeError as e:
+            logger.error(f"주석 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"주석 삽입 실패: {e}")
+            logger.error(f"주석 삽입 중 예상치 못한 오류: {e}")
             return False
     
     # ============== 검색 및 하이라이트 기능 ==============
@@ -275,8 +302,14 @@ class HwpDocumentFeatures:
             logger.info(f"검색 및 하이라이트 완료: '{search_text}' {found_count}개 발견")
             return found_count
             
+        except AttributeError as e:
+            logger.error(f"검색 및 하이라이트 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return 0
+        except KeyError as e:
+            logger.error(f"지원하지 않는 하이라이트 색상: {e}")
+            return 0
         except Exception as e:
-            logger.error(f"검색 및 하이라이트 실패: {e}")
+            logger.error(f"검색 및 하이라이트 중 예상치 못한 오류: {e}")
             return 0
     
     # ============== 워터마크 기능 ==============
@@ -320,8 +353,11 @@ class HwpDocumentFeatures:
             logger.info(f"워터마크 삽입 성공: {text}")
             return True
             
+        except AttributeError as e:
+            logger.error(f"워터마크 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"워터마크 삽입 실패: {e}")
+            logger.error(f"워터마크 삽입 중 예상치 못한 오류: {e}")
             return False
     
     # ============== 필드 코드 기능 ==============
@@ -348,8 +384,14 @@ class HwpDocumentFeatures:
             logger.info(f"필드 삽입 성공: {field_type}")
             return True
             
+        except AttributeError as e:
+            logger.error(f"필드 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except KeyError as e:
+            logger.error(f"지원하지 않는 필드 유형: {e}")
+            return False
         except Exception as e:
-            logger.error(f"필드 삽입 실패: {e}")
+            logger.error(f"필드 삽입 중 예상치 못한 오류: {e}")
             return False
     
     # ============== 문서 보안 기능 ==============
@@ -384,6 +426,12 @@ class HwpDocumentFeatures:
             logger.info("문서 암호 설정 성공")
             return True
             
+        except AttributeError as e:
+            logger.error(f"문서 암호 설정 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
+        except ValueError as e:
+            logger.error(f"암호 형식 오류: {e} (암호는 비어있을 수 없습니다)")
+            return False
         except Exception as e:
-            logger.error(f"문서 암호 설정 실패: {e}")
+            logger.error(f"문서 암호 설정 중 예상치 못한 오류: {e}")
             return False

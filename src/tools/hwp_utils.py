@@ -105,7 +105,7 @@ def set_font_properties(hwp, font_name: Optional[str] = None,
 
 def move_to_table_cell(hwp, row: int, col: int) -> bool:
     """
-    표의 특정 셀로 이동하는 공통 함수
+    표의 특정 셀로 이동하는 기본 함수 (하위 호환성 유지)
     
     Args:
         hwp: HWP COM 객체
@@ -133,6 +133,88 @@ def move_to_table_cell(hwp, row: int, col: int) -> bool:
     except Exception as e:
         logger.error(f"셀 이동 실패: ({row}, {col}) - {str(e)}")
         return False
+
+
+def move_to_table_cell_optimized(hwp, row: int, col: int, current_row: int = 1, current_col: int = 1) -> bool:
+    """
+    표의 특정 셀로 이동하는 최적화된 공통 함수
+    
+    Args:
+        hwp: HWP COM 객체
+        row: 목표 행 번호 (1부터 시작)
+        col: 목표 열 번호 (1부터 시작)
+        current_row: 현재 행 번호 (1부터 시작, 기본값 1)
+        current_col: 현재 열 번호 (1부터 시작, 기본값 1)
+    
+    Returns:
+        bool: 성공 여부
+    """
+    try:
+        # 현재 위치와 목표 위치가 같으면 이동하지 않음
+        if row == current_row and col == current_col:
+            return True
+        
+        # 첫 번째 셀이 아닌 경우 최적화된 이동 방법 사용
+        if current_row != 1 or current_col != 1:
+            # 상대적 이동 계산
+            row_diff = row - current_row
+            col_diff = col - current_col
+            
+            # 행 이동 최적화
+            if row_diff > 0:
+                # 아래로 이동
+                for _ in range(row_diff):
+                    hwp.Run("TableLowerCell")
+            elif row_diff < 0:
+                # 위로 이동
+                for _ in range(-row_diff):
+                    hwp.Run("TableUpperCell")
+            
+            # 열 이동 최적화
+            if col_diff > 0:
+                # 오른쪽으로 이동
+                for _ in range(col_diff):
+                    hwp.Run("TableRightCell")
+            elif col_diff < 0:
+                # 왼쪽으로 이동
+                for _ in range(-col_diff):
+                    hwp.Run("TableLeftCell")
+        else:
+            # 첫 번째 셀에서 시작하는 경우 기존 방식 사용
+            # 표의 첫 번째 셀로 이동
+            hwp.Run("TableColBegin")
+            hwp.Run("TableRowBegin")
+            
+            # 목표 행으로 이동
+            for _ in range(row - 1):
+                hwp.Run("TableLowerCell")
+            
+            # 목표 열로 이동
+            for _ in range(col - 1):
+                hwp.Run("TableRightCell")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"셀 이동 실패: ({current_row},{current_col}) -> ({row}, {col}) - {str(e)}")
+        return False
+
+
+class TablePosition:
+    """표 내 위치를 추적하는 헬퍼 클래스"""
+    
+    def __init__(self, row: int = 1, col: int = 1):
+        self.row = row
+        self.col = col
+    
+    def move_to(self, new_row: int, new_col: int):
+        """위치 업데이트"""
+        self.row = new_row
+        self.col = new_col
+    
+    def get_position(self) -> tuple:
+        """현재 위치 반환"""
+        return (self.row, self.col)
 
 
 def parse_table_data(data: Any) -> list:

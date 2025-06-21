@@ -18,6 +18,8 @@ from tools.hwp_utils import (
     safe_hwp_operation,
     set_font_properties,
     move_to_table_cell,
+    move_to_table_cell_optimized,
+    TablePosition,
     parse_table_data,
     execute_with_retry,
     validate_table_coordinates,
@@ -243,6 +245,101 @@ class TestMoveToTableCell:
         
         # Then
         assert result is False
+
+
+class TestMoveToTableCellOptimized:
+    """move_to_table_cell_optimized 함수 테스트"""
+    
+    @pytest.fixture
+    def mock_hwp(self):
+        """Mock HWP 객체"""
+        return Mock()
+    
+    def test_move_same_position(self, mock_hwp):
+        """같은 위치로 이동 (이동하지 않음)"""
+        # When
+        result = move_to_table_cell_optimized(mock_hwp, 2, 3, 2, 3)
+        
+        # Then
+        assert result is True
+        mock_hwp.Run.assert_not_called()
+    
+    def test_move_from_first_cell(self, mock_hwp):
+        """첫 번째 셀에서 다른 셀로 이동"""
+        # When
+        result = move_to_table_cell_optimized(mock_hwp, 3, 4, 1, 1)
+        
+        # Then
+        assert result is True
+        calls = mock_hwp.Run.call_args_list
+        assert call("TableColBegin") in calls
+        assert call("TableRowBegin") in calls
+        assert calls.count(call("TableLowerCell")) == 2
+        assert calls.count(call("TableRightCell")) == 3
+    
+    def test_move_relative_down_right(self, mock_hwp):
+        """상대적 이동: 아래쪽, 오른쪽"""
+        # When
+        result = move_to_table_cell_optimized(mock_hwp, 4, 5, 2, 3)
+        
+        # Then
+        assert result is True
+        calls = mock_hwp.Run.call_args_list
+        assert calls.count(call("TableLowerCell")) == 2  # 4-2 = 2
+        assert calls.count(call("TableRightCell")) == 2  # 5-3 = 2
+    
+    def test_move_relative_up_left(self, mock_hwp):
+        """상대적 이동: 위쪽, 왼쪽"""
+        # When
+        result = move_to_table_cell_optimized(mock_hwp, 2, 3, 4, 5)
+        
+        # Then
+        assert result is True
+        calls = mock_hwp.Run.call_args_list
+        assert calls.count(call("TableUpperCell")) == 2  # 2-4 = -2
+        assert calls.count(call("TableLeftCell")) == 2   # 3-5 = -2
+    
+    def test_move_optimized_with_exception(self, mock_hwp):
+        """예외 발생 시 처리"""
+        # Given
+        mock_hwp.Run.side_effect = Exception("Test error")
+        
+        # When
+        result = move_to_table_cell_optimized(mock_hwp, 2, 2, 1, 1)
+        
+        # Then
+        assert result is False
+
+
+class TestTablePosition:
+    """TablePosition 클래스 테스트"""
+    
+    def test_initial_position(self):
+        """초기 위치 설정"""
+        # When
+        pos = TablePosition()
+        
+        # Then
+        assert pos.get_position() == (1, 1)
+    
+    def test_custom_initial_position(self):
+        """사용자 정의 초기 위치"""
+        # When
+        pos = TablePosition(3, 4)
+        
+        # Then
+        assert pos.get_position() == (3, 4)
+    
+    def test_move_to_position(self):
+        """위치 이동"""
+        # Given
+        pos = TablePosition(1, 1)
+        
+        # When
+        pos.move_to(5, 6)
+        
+        # Then
+        assert pos.get_position() == (5, 6)
 
 
 class TestParseTableData:

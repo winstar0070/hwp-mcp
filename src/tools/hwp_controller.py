@@ -30,9 +30,10 @@ try:
     from .config import get_config
     from .hwp_utils import (
         require_hwp_connection, safe_hwp_operation,
-        set_font_properties, move_to_table_cell,
-        validate_table_coordinates, log_operation_result
+        set_font_properties, move_to_table_cell, move_to_table_cell_optimized,
+        validate_table_coordinates, log_operation_result, TablePosition
     )
+    from .error_handling_guide import validate_file_path
 except ImportError:
     # 예외 클래스가 없는 경우 기본 Exception 사용
     HwpError = Exception
@@ -199,11 +200,8 @@ class HwpController:
             if not self.is_hwp_running:
                 raise HwpNotRunningError()
             
-            abs_path = os.path.abspath(file_path)
-            
-            # 파일 존재 확인
-            if not os.path.exists(abs_path):
-                raise HwpDocumentNotFoundError(abs_path)
+            # 파일 경로 검증 및 정규화
+            abs_path = validate_file_path(file_path, must_exist=True)
             
             result = self.hwp.Open(abs_path)
             if result:
@@ -231,7 +229,8 @@ class HwpController:
                 raise HwpNotRunningError()
             
             if file_path:
-                abs_path = os.path.abspath(file_path)
+                # 파일 경로 검증 및 정규화 (파일은 존재하지 않아도 됨)
+                abs_path = validate_file_path(file_path, must_exist=False)
                 
                 # 디렉토리 존재 확인 및 생성
                 dir_path = os.path.dirname(abs_path)

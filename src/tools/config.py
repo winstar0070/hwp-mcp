@@ -9,6 +9,16 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict, field
 from .constants import *
 
+try:
+    from .error_handling_guide import validate_file_path
+except ImportError:
+    # validate_file_path를 위한 간단한 fallback
+    def validate_file_path(path: str, must_exist: bool = False) -> str:
+        abs_path = os.path.abspath(path)
+        if must_exist and not os.path.exists(abs_path):
+            raise FileNotFoundError(f"파일을 찾을 수 없습니다: {abs_path}")
+        return abs_path
+
 @dataclass
 class HwpConfig:
     """HWP MCP 설정 클래스"""
@@ -71,17 +81,26 @@ class HwpConfig:
     
     def save(self, path: str):
         """설정을 JSON 파일로 저장"""
-        with open(path, 'w', encoding='utf-8') as f:
+        # 파일 경로 검증 및 정규화
+        validated_path = validate_file_path(path, must_exist=False)
+        
+        # 디렉토리가 없으면 생성
+        dir_path = os.path.dirname(validated_path)
+        if dir_path and not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        
+        with open(validated_path, 'w', encoding='utf-8') as f:
             json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
     
     @classmethod
     def load(cls, path: str) -> 'HwpConfig':
         """JSON 파일에서 설정 로드"""
-        if os.path.exists(path):
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                return cls.from_dict(data)
-        return cls()
+        # 파일 경로 검증 및 정규화
+        validated_path = validate_file_path(path, must_exist=True)
+        
+        with open(validated_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return cls.from_dict(data)
 
 
 class ConfigManager:
@@ -119,7 +138,9 @@ class ConfigManager:
         for path in config_paths:
             if os.path.exists(path):
                 try:
-                    return HwpConfig.load(path)
+                    # 검증된 경로로 로드
+                    validated_path = validate_file_path(path, must_exist=True)
+                    return HwpConfig.load(validated_path)
                 except Exception as e:
                     print(f"설정 파일 로드 실패 ({path}): {e}")
         

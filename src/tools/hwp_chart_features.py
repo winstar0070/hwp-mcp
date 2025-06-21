@@ -131,8 +131,11 @@ class HwpChartFeatures:
             log_operation_result("차트 삽입", True, f"{chart_type} 차트")
             return True
             
+        except AttributeError as e:
+            logger.error(f"차트 삽입 API 호출 실패: {e} (HWP 연결 상태를 확인하세요)")
+            return False
         except Exception as e:
-            logger.error(f"차트 삽입 중 오류: {e}")
+            logger.error(f"차트 삽입 중 예상치 못한 오류: {e}")
             return False
     
     @require_hwp_connection
