@@ -1,0 +1,9 @@
+# Cross-platform document processing requirements
+mcp>=0.1.0
+python-docx>=0.8.11
+pypandoc>=1.11
+pypandoc-binary>=1.11  # Optional: includes pandoc binary
+openpyxl>=3.0.0  # For Excel support
+python-pptx>=0.6.21  # For PowerPoint support
+pyyaml>=6.0  # For config files
+typing-extensions>=4.0.0  # For better type hints
