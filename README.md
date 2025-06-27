@@ -23,7 +23,7 @@ HWP-MCP는 한글 워드 프로세서(HWP)를 Claude와 같은 AI 모델이 제�
 
 1. 저장소 클론:
 ```bash
-git clone https://github.com/jkf87/hwp-mcp.git
+git clone https://github.com/winstar0070/hwp-mcp.git
 cd hwp-mcp
 ```
 
