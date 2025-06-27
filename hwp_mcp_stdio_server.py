@@ -11,9 +11,10 @@ from threading import Thread
 import time
 
 # Configure logging
+log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hwp_mcp_stdio_server.log")
 logging.basicConfig(
     level=logging.INFO,
-    filename="hwp_mcp_stdio_server.log",
+    filename=log_file,
     filemode="a",
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
